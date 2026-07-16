@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>이커머스 CS 데이터 인사이트 대시보드</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1c2733; --muted: #607080; --card-bg: #f3f5f7;
+    --border: #d7dee5; --accent: #1e88e5; --danger: #e53935; --info-bg: #e3f2fd;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14181d; --fg: #e6edf3; --muted: #9aa7b4; --card-bg: #1c2530;
+      --border: #2c3742; --accent: #4aa3ff; --danger: #ff6b64; --info-bg: #16293d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: -apple-system, "Malgun Gothic", sans-serif; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 20px 64px; }
+  h1 { font-size: 1.6rem; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); margin-bottom: 20px; font-size: 0.9rem; }
+  .info-box { background: var(--info-bg); border: 1px solid var(--accent); border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 0.92rem; line-height: 1.6; }
+  .info-box b { display: block; margin-bottom: 6px; }
+  .disclaimer { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: 0.85rem; color: var(--muted); }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
+  .tab-btn { background: none; border: none; padding: 10px 16px; font-size: 0.95rem; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .chart { width: 100%; min-height: 360px; margin-bottom: 14px; }
+  .note { font-size: 0.92rem; line-height: 1.6; margin: 6px 0; }
+  .caption { color: var(--muted); font-size: 0.82rem; margin-top: 4px; }
+  .scorecards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 18px; text-align: center; }
+  .card .label { color: var(--muted); font-size: 0.85rem; margin-bottom: 8px; }
+  .card .value { font-size: 1.8rem; font-weight: 700; }
+  .card .desc { color: var(--muted); font-size: 0.78rem; margin-top: 6px; }
+  .neg { color: var(--danger); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>이커머스 CS 데이터 인사이트 대시보드</h1>
+  <div class="subtitle">모두의연구소 2주차 프로젝트 — HTML/Plotly.js 정적 버전 (Streamlit 버전과 동일한 데이터·결론)</div>
+
+  <div class="info-box">
+    <b>이번 2주차 핵심 요약 (정직한 버전)</b>
+    1. VOC: 결제/환불이 부정비율 최고(47.9%)이나, 카테고리 간 차이는 6.4%p로 크지 않음<br />
+    2. 만족도: NPS 평균(6.60)만 보면 무난하지만 정식 계산법으로는 -14.1 — '평균의 함정'은 재현됨<br />
+    3. 재문의·이탈: 반복재문의·회원등급·지역 신호는 이 합성 데이터에서 이탈과 뚜렷한 상관을 보이지 않음(일부는 반대 방향) — 처방적 제안은 데이터 한계로 보류
+  </div>
+
+  <div class="disclaimer">
+    이 대시보드는 모두의연구소 2주차 프로젝트로 제작되었습니다. <code>raw/</code>의 데이터는 <b>100% 가상(합성) 이커머스 CS 데이터</b>이며 실제 서비스 데이터가 아닙니다.
+    일부 탭의 결과는 노이즈성이거나 예상과 반대 방향으로 나왔고, 이를 숨기지 않고 그대로 표시합니다.
+    차트 데이터는 배포 시점에 <code>build_data.py</code>로 미리 계산해 구운 <code>data.json</code>을 읽어 그립니다(정적 호스팅 — 서버에서 실시간 재계산하지 않음).
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="voc">VOC 현황</button>
+    <button class="tab-btn" data-tab="csat">만족도</button>
+    <button class="tab-btn" data-tab="chain">재문의·이탈</button>
+    <button class="tab-btn" data-tab="customer">고객 현황</button>
+  </div>
+
+  <div class="panel active" id="tab-voc">
+    <div id="chart-voc-category" class="chart"></div>
+    <div id="chart-voc-monthly" class="chart"></div>
+    <div id="chart-voc-worst" class="chart"></div>
+    <p class="note"><b>해석</b>: 대분류 간 부정 비율 차이가 크지 않다는 것 자체가, 특정 카테고리 하나의 문제가 아니라 부정 여론이 고르게 분포한다는 신호로 보인다.</p>
+    <p class="note"><b>시사점</b>: 결제/환불을 하나로 뭉뚱그리지 않고 쿠폰/포인트·결제오류·이중결제·환불속도·부분환불 정책을 개별 과제로 분리해 개선하는 것이 효과적일 것으로 보인다.</p>
+    <p class="caption">신뢰도: 높음 (데이터 직접 확인)</p>
+  </div>
+
+  <div class="panel" id="tab-csat">
+    <div class="scorecards" id="scorecards"></div>
+    <div id="chart-csat-category" class="chart"></div>
+    <div id="chart-channel-combo" class="chart"></div>
+    <p class="note"><b>해석</b>: NPS 평균의 함정은 재현되지만(6.60 → 정식계산 -14.1), 채널·카테고리별 효과는 텔레콤 원본만큼 뚜렷하지 않다.</p>
+    <p class="note"><b>시사점</b>: 이 데이터로 '어느 채널을 우선 개선해야 하는가'를 확정하기는 어렵다. 다만 평균만 보고 안심하면 안 된다는 방법론적 교훈은 유효하다.</p>
+    <p class="caption">신뢰도: 중간 (패턴 추정)</p>
+  </div>
+
+  <div class="panel" id="tab-chain">
+    <div id="chart-chain" class="chart"></div>
+    <p class="note"><b>해석</b>: 반복재문의(2회+) 고객의 이탈율이 재문의 없는 고객보다 오히려 낮게 나와, 텔레콤 원본과 반대 방향이다.</p>
+    <p class="note"><b>시사점</b>: 이 결과를 실제 비즈니스 결론으로 사용하면 안 된다. 체인 분석 방법론 자체(횟수로 쪼개서 보기)는 유효하다.</p>
+    <p class="caption">신뢰도: 낮음 (가설 — 데이터 한계로 판단)</p>
+  </div>
+
+  <div class="panel" id="tab-customer">
+    <div id="chart-grade" class="chart"></div>
+    <div id="chart-region" class="chart"></div>
+    <p class="note"><b>해석</b>: 회원등급별 이탈율 차이는 작고 상식과 다른 방향으로도 나타난다. 지역은 제주(n=30)를 제외한 전 지역이 표본 30건 미만이라 참고용에 그친다.</p>
+    <p class="note"><b>시사점</b>: 규칙 기반 위험 스코어링도 신호 간 방향이 엇갈려 합산 점수가 작동하지 않음을 확인했다 — 처방적 제안(Top3)은 데이터 한계로 보류한다.</p>
+    <p class="caption">신뢰도: 낮음 (가설 — 표본·데이터 생성 한계)</p>
+  </div>
+</div>
+
+<script>
+const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+const fg = isDark ? "#e6edf3" : "#1c2733";
+const grid = isDark ? "#2c3742" : "#e3e8ec";
+const layoutBase = {
+  paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+  font: { color: fg, family: "Malgun Gothic, sans-serif" },
+  margin: { t: 40, l: 50, r: 30, b: 60 },
+  xaxis: { gridcolor: grid }, yaxis: { gridcolor: grid },
+};
+const config = { responsive: true, displayModeBar: false };
+
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+    window.dispatchEvent(new Event("resize"));
+  });
+});
+
+fetch("data.json").then(r => r.json()).then(d => {
+  // VOC 카테고리
+  Plotly.newPlot("chart-voc-category", [
+    { x: d.voc_category.labels, y: d.voc_category.전체, name: "전체 건수", type: "bar", marker: { color: "#cfd8dc" } },
+    { x: d.voc_category.labels, y: d.voc_category.부정, name: "부정 건수", type: "bar", marker: { color: "#e53935" } },
+  ], { ...layoutBase, title: "대분류별 전체·부정 VOC 건수", barmode: "overlay" }, config);
+
+  // VOC 월별
+  Plotly.newPlot("chart-voc-monthly", [
+    { x: d.voc_monthly.labels, y: d.voc_monthly.전체, name: "전체 건수", type: "scatter", mode: "lines+markers", line: { color: "#1e88e5" } },
+    { x: d.voc_monthly.labels, y: d.voc_monthly.부정, name: "부정 건수", type: "scatter", mode: "lines+markers", line: { color: "#e53935" } },
+  ], { ...layoutBase, title: "월별 전체·부정 VOC 추이" }, config);
+
+  // 결제/환불 부정 유형 분해
+  Plotly.newPlot("chart-voc-worst", [
+    { x: d.voc_worst_breakdown.values, y: d.voc_worst_breakdown.labels, type: "bar", orientation: "h", marker: { color: "#1e88e5" }, text: d.voc_worst_breakdown.values, textposition: "outside" },
+  ], { ...layoutBase, title: "결제/환불 부정 VOC 유형 분해" }, config);
+
+  // 스코어카드
+  const s = d.scorecard;
+  const npsClass = s.nps_score < 0 ? "neg" : "";
+  document.getElementById("scorecards").innerHTML = `
+    <div class="card"><div class="label">CSAT 평균</div><div class="value">${s.csat_mean} / 5</div><div class="desc">n=${s.n}건</div></div>
+    <div class="card"><div class="label">NPS 평균</div><div class="value">${s.nps_mean} / 10</div><div class="desc">참고용(평균 지표)</div></div>
+    <div class="card"><div class="label">NPS 점수</div><div class="value ${npsClass}">${s.nps_score}</div><div class="desc">추천자%-비판자%(정식 계산)</div></div>
+    <div class="card"><div class="label">저만족 비율</div><div class="value neg">${s.low_ratio}%</div><div class="desc">csat 1~2점 비중</div></div>
+  `;
+
+  // 카테고리별 CSAT
+  Plotly.newPlot("chart-csat-category", [
+    { x: d.csat_by_category.labels, y: d.csat_by_category.values, type: "bar", marker: { color: "#90a4ae" } },
+  ], { ...layoutBase, title: "상담 카테고리별 CSAT 평균",
+       shapes: [{ type: "line", x0: -0.5, x1: d.csat_by_category.labels.length - 0.5, y0: d.csat_by_category.overall, y1: d.csat_by_category.overall, line: { color: "#e53935", dash: "dash" } }] }, config);
+
+  // 채널 결합차트
+  Plotly.newPlot("chart-channel-combo", [
+    { x: d.channel_combo.labels, y: d.channel_combo.csat, name: "CSAT 평균", type: "bar", marker: { color: "#1e88e5" }, yaxis: "y" },
+    { x: d.channel_combo.labels, y: d.channel_combo.recontact, name: "재문의율(%)", type: "scatter", mode: "lines+markers", line: { color: "#fb8c00" }, yaxis: "y2" },
+  ], { ...layoutBase, title: "채널별 CSAT x 재문의율", yaxis: { title: "CSAT", range: [0, 5] }, yaxis2: { title: "재문의율(%)", overlaying: "y", side: "right", range: [0, 40] } }, config);
+
+  // 체인 분석
+  const chainColors = d.chain.이탈율.map(v => v === Math.max(...d.chain.이탈율) ? "#e53935" : "#90a4ae");
+  Plotly.newPlot("chart-chain", [
+    { x: d.chain.labels, y: d.chain.이탈율, type: "bar", marker: { color: chainColors }, text: d.chain.이탈율.map((v,i) => `${v}% (n=${d.chain.건수[i]})`), textposition: "outside" },
+  ], { ...layoutBase, title: "재문의 횟수 구간별 이탈율",
+       shapes: [{ type: "line", x0: -0.5, x1: 2.5, y0: d.chain.overall, y1: d.chain.overall, line: { color: "#1e88e5", dash: "dash" } }] }, config);
+
+  // 회원등급 이탈
+  Plotly.newPlot("chart-grade", [
+    { x: d.grade_churn.labels, y: d.grade_churn.values, type: "bar", marker: { color: "#1e88e5" } },
+  ], { ...layoutBase, title: "회원등급별 이탈율(%)",
+       shapes: [{ type: "line", x0: -0.5, x1: d.grade_churn.labels.length - 0.5, y0: d.grade_churn.overall, y1: d.grade_churn.overall, line: { color: "#e53935", dash: "dash" } }] }, config);
+
+  // 지역 이탈 (30건 미만 회색)
+  const regionColors = d.region_churn.counts.map(c => c < 30 ? "#90a4ae" : "#1e88e5");
+  Plotly.newPlot("chart-region", [
+    { x: d.region_churn.labels, y: d.region_churn.values, type: "bar", marker: { color: regionColors } },
+  ], { ...layoutBase, title: "지역별 이탈율(%) — 회색=표본 30건 미만" }, config);
+}).catch(err => {
+  document.querySelector(".wrap").insertAdjacentHTML("afterbegin", `<div class="disclaimer" style="border-color:var(--danger)">data.json을 불러오지 못했습니다: ${err}. build_data.py를 먼저 실행했는지 확인하세요.</div>`);
+});
+</script>
+</body>
+</html>

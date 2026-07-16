@@ -1,7 +1,49 @@
 import streamlit as st
-import glob
 
-st.title("CS 데이터 미니 대시보드 (배포 테스트)")
+st.set_page_config(page_title="CS 데이터 인사이트 대시보드", layout="wide")
 
-for path in sorted(glob.glob("components/output/*.png")):
-    st.image(path)
+st.title("이커머스 CS 데이터 인사이트 대시보드")
+
+st.info(
+    "**이번 2주차 핵심 요약(정직한 버전)**\n\n"
+    "1. VOC: 결제/환불이 부정비율 최고(47.9%)이나, 카테고리 간 차이는 6.4%p로 크지 않음\n"
+    "2. 만족도: NPS 평균(6.60)만 보면 무난하지만 정식 계산법으로는 -14.1 — '평균의 함정'은 재현됨\n"
+    "3. 재문의·이탈: 반복재문의·회원등급·지역 신호는 이 합성 데이터에서 이탈과 뚜렷한 상관을 보이지 않음 "
+    "(일부는 반대 방향) — 처방적 제안은 데이터 한계로 보류"
+)
+
+st.sidebar.markdown(
+    "이 대시보드는 모두의연구소 2주차 프로젝트로 제작되었습니다.\n\n"
+    "`raw/`의 데이터는 **100% 가상(합성) 이커머스 CS 데이터**이며, "
+    "실제 서비스 데이터가 아닙니다. 일부 탭의 결과는 노이즈성이거나 "
+    "예상과 반대 방향으로 나왔고, 이를 숨기지 않고 그대로 표시합니다."
+)
+
+tab1, tab2, tab3, tab4 = st.tabs(["VOC 현황", "만족도", "재문의·이탈", "고객 현황"])
+
+with tab1:
+    st.image("components/output/01_voc_overview.png")
+    st.image("components/output/01보충_결제환불_불만유형.png")
+    st.markdown("**해석**: 대분류 간 부정 비율 차이가 크지 않다는 것 자체가, 특정 카테고리 하나의 문제가 아니라 부정 여론이 고르게 분포한다는 신호로 보인다.")
+    st.markdown("**시사점**: 결제/환불을 하나로 뭉뚱그리지 않고 쿠폰/포인트·결제오류·이중결제·환불속도·부분환불 정책을 개별 과제로 분리해 개선하는 것이 효과적일 것으로 보인다.")
+    st.caption("신뢰도: 높음 (데이터 직접 확인)")
+
+with tab2:
+    st.image("components/output/02_csat_nps_scorecard.png")
+    st.image("components/output/03_카테고리별_저만족도.png")
+    st.image("components/output/04_채널별_CSAT_재문의.png")
+    st.markdown("**해석**: NPS 평균의 함정은 재현되지만(6.60 → 정식계산 -14.1), 채널·카테고리별 효과는 텔레콤 원본만큼 뚜렷하지 않다 — 데이터가 상담 status에서만 파생되고 channel/category와 독립 생성된 한계로 판단.")
+    st.markdown("**시사점**: 이 데이터로 '어느 채널을 우선 개선해야 하는가'를 확정하기는 어렵다. 다만 평균만 보고 안심하면 안 된다는 방법론적 교훈은 유효하다.")
+    st.caption("신뢰도: 중간 (패턴 추정)")
+
+with tab3:
+    st.image("components/output/05_상담_재문의_이탈_체인.png")
+    st.markdown("**해석**: 반복재문의(2회+) 고객의 이탈율(3.0%)이 재문의 없는 고객(13.5%)보다 오히려 낮게 나와, 텔레콤 원본과 반대 방향이다. `churn_yn`이 상담 이력과 독립적으로 생성된 데이터 한계로 판단된다.")
+    st.markdown("**시사점**: 이 결과를 실제 비즈니스 결론으로 사용하면 안 된다. 체인 분석 방법론 자체(횟수로 쪼개서 보기)는 유효하다.")
+    st.caption("신뢰도: 낮음 (가설 — 데이터 한계로 판단)")
+
+with tab4:
+    st.image("components/output/06_고객현황_이탈.png")
+    st.markdown("**해석**: 회원등급별 이탈율 차이는 4.6%p로 작고 VIP가 BRONZE보다 높게 나오는 등 상식과 다른 방향. 지역은 제주(n=30)를 제외한 전 지역이 표본 30건 미만이라 참고용에 그친다.")
+    st.markdown("**시사점**: 등급·지역을 위험 신호로 사용하기에는 근거가 약하다. 규칙 기반 위험 스코어링도 신호 간 방향이 엇갈려(반복재문의가 반대 방향) 합산 점수가 작동하지 않음을 확인했다 — 처방적 제안(Top3)은 데이터 한계로 보류한다.")
+    st.caption("신뢰도: 낮음 (가설 — 표본·데이터 생성 한계)")
