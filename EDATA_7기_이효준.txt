@@ -1,0 +1,13 @@
+EDATA 7기 이효준 - 이커머스 CS 데이터 인사이트 대시보드 제출
+
+[GitHub 저장소]
+https://github.com/wns9096/ecommerce-cs-dashboard
+
+[Streamlit Community Cloud]
+https://ecommerce-cs-dashboard-ke9pykjqushjronrxmdhnb.streamlit.app/
+
+[Netlify]
+https://ecommerce-cs-dashboard-wns9096.netlify.app
+
+[Cloudflare Pages]
+https://ecommerce-cs-dashboard.pages.dev
