@@ -131,7 +131,19 @@ with tab4:
     with c2:
         st.plotly_chart(az.fig_region_churn(cust), use_container_width=True)
 
-    st.plotly_chart(az.fig_region_map(cust), use_container_width=True)
+    map_event = st.plotly_chart(
+        az.fig_region_map(cust), use_container_width=True,
+        on_select="rerun", selection_mode="points", key="region_map",
+    )
+    points = map_event.selection.points if map_event and map_event.selection else []
+    if points:
+        region, count, churned, rate = points[0]["customdata"]
+        m1, m2, m3 = st.columns(3)
+        m1.metric(f"{region} 고객수", f"{count}명")
+        m2.metric(f"{region} 이탈 고객수", f"{churned}명")
+        m3.metric(f"{region} 이탈율", f"{rate}%")
+    else:
+        st.caption("지도의 버블을 클릭하면 해당 지역의 고객수·이탈 고객수·이탈율이 여기에 표시됩니다.")
 
     c3, c4 = st.columns(2)
     with c3:

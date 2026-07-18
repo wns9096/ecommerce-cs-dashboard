@@ -178,6 +178,9 @@
       <div id="chart-region" class="chart"></div>
     </div>
     <div id="chart-region-map" class="chart" style="min-height:460px;"></div>
+    <div class="scorecards" id="region-map-detail">
+      <div class="card"><div class="label">지역을 클릭해보세요</div><div class="value" style="font-size:1rem;color:var(--muted);">버블 클릭 시 고객수·이탈수·이탈율 표시</div></div>
+    </div>
     <div class="row2">
       <div id="chart-cohort" class="chart"></div>
       <div id="chart-age" class="chart"></div>
@@ -202,12 +205,17 @@
 const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
 const fg = isDark ? "#e6edf3" : "#1c2733";
 const grid = isDark ? "#2c3742" : "#e3e8ec";
-const layoutBase = {
-  paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
-  font: { color: fg, family: "Malgun Gothic, sans-serif" },
-  margin: { t: 40, l: 50, r: 30, b: 60 },
-  xaxis: { gridcolor: grid }, yaxis: { gridcolor: grid },
-};
+// Plotly.newPlot는 layout에 넘긴 객체를 내부적으로 그대로 보관·수정한다(예: xaxis.type을 계산해 되써넣음).
+// 그래서 여러 차트가 layout(특히 xaxis/yaxis)을 "같은 객체 참조"로 공유하면, 먼저 그려진 차트가
+// 남긴 축 타입(category 등)이 뒤에 그려지는 차트에 그대로 새어 들어간다 — 반드시 매 호출마다 새 객체를 만든다.
+function baseLayout() {
+  return {
+    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+    font: { color: fg, family: "Malgun Gothic, sans-serif" },
+    margin: { t: 40, l: 50, r: 30, b: 60 },
+    xaxis: { gridcolor: grid }, yaxis: { gridcolor: grid },
+  };
+}
 const config = { responsive: true, displayModeBar: false };
 
 // dataviz 스킬 검증 팔레트
@@ -308,7 +316,7 @@ fetch("data.json").then(r => r.json()).then(d => {
     Plotly.newPlot("chart-voc-category", [
       { x: cats, y: total, name: "전체 건수", type: "bar", marker: { color: MUTED } },
       { x: cats, y: neg, name: "부정 건수", type: "bar", marker: { color: CRITICAL } },
-    ], { ...layoutBase, title: "대분류별 전체·부정 VOC 건수", barmode: "group" }, config);
+    ], { ...baseLayout(), title: "대분류별 전체·부정 VOC 건수", barmode: "group" }, config);
   }
 
   function renderVocMonthly(rows) {
@@ -317,7 +325,7 @@ fetch("data.json").then(r => r.json()).then(d => {
     Plotly.newPlot("chart-voc-monthly", [
       { x: months, y: months.map(m => byMonth.get(m).length), name: "전체 건수", type: "scatter", mode: "lines+markers", line: { color: BLUE } },
       { x: months, y: months.map(m => byMonth.get(m).filter(r => r.sentiment === "부정").length), name: "부정 건수", type: "scatter", mode: "lines+markers", line: { color: CRITICAL } },
-    ], { ...layoutBase, title: "월별 전체·부정 VOC 추이" }, config);
+    ], { ...baseLayout(), title: "월별 전체·부정 VOC 추이" }, config);
   }
 
   function renderVocChannel(rows) {
@@ -325,12 +333,12 @@ fetch("data.json").then(r => r.json()).then(d => {
     const chans = [...byChan.keys()].sort((a, b) => byChan.get(b).length - byChan.get(a).length);
     Plotly.newPlot("chart-voc-channel-count", [
       { x: chans, y: chans.map(c => byChan.get(c).length), type: "bar", marker: { color: BLUE } },
-    ], { ...layoutBase, title: "채널별 VOC 건수", showlegend: false }, config);
+    ], { ...baseLayout(), title: "채널별 VOC 건수", showlegend: false }, config);
     const negRate = chans.map(c => { const g = byChan.get(c); return g.filter(r => r.sentiment === "부정").length / g.length * 100; })
       .map((v, i) => ({ v, c: chans[i] })).sort((a, b) => b.v - a.v);
     Plotly.newPlot("chart-voc-channel-negrate", [
       { x: negRate.map(o => o.c), y: negRate.map(o => Number(fmt(o.v))), type: "bar", marker: { color: CRITICAL } },
-    ], { ...layoutBase, title: "채널별 부정 VOC 비율(%)", showlegend: false }, config);
+    ], { ...baseLayout(), title: "채널별 부정 VOC 비율(%)", showlegend: false }, config);
   }
 
   function renderVocSentiment(rows) {
@@ -339,7 +347,7 @@ fetch("data.json").then(r => r.json()).then(d => {
     Plotly.newPlot("chart-voc-sentiment", [{
       labels: keys, values: keys.map(k => bySenti.get(k).length), type: "pie", hole: 0.55,
       marker: { colors: keys.map(k => SENTIMENT_COLOR[k] || MUTED) },
-    }], { ...layoutBase, title: "전체 감정분류 비율" }, config);
+    }], { ...baseLayout(), title: "전체 감정분류 비율" }, config);
   }
 
   function renderVocBreakdown(rows) {
@@ -358,7 +366,7 @@ fetch("data.json").then(r => r.json()).then(d => {
     Plotly.newPlot("chart-voc-worst", [{
       x: subs.map(s => bySub.get(s).length), y: subs, type: "bar", orientation: "h",
       marker: { color }, text: subs.map(s => bySub.get(s).length), textposition: "outside",
-    }], { ...layoutBase, title: `${cat} · ${senti} VOC 유형 분해 (전체 ${sub.length}건)`, showlegend: false }, config);
+    }], { ...baseLayout(), title: `${cat} · ${senti} VOC 유형 분해 (전체 ${sub.length}건)`, showlegend: false }, config);
   }
 
   function escapeHtml(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
@@ -402,23 +410,23 @@ fetch("data.json").then(r => r.json()).then(d => {
     const overall = mean(csatVals);
     Plotly.newPlot("chart-csat-category", [
       { x: cats, y: cats.map(c => Number(fmt(mean(byCat.get(c).map(r => r.csat)), 2))), type: "bar", marker: { color: BLUE } },
-    ], { ...layoutBase, title: "상담 카테고리별 CSAT 평균", showlegend: false,
+    ], { ...baseLayout(), title: "상담 카테고리별 CSAT 평균", showlegend: false,
          shapes: [{ type: "line", x0: -0.5, x1: cats.length - 0.5, y0: overall, y1: overall, line: { color: CRITICAL, dash: "dash" } }] }, config);
 
     Plotly.newPlot("chart-csat-hist", [
       { x: csatVals, type: "histogram", xbins: { start: 0.5, end: 5.5, size: 1 }, marker: { color: BLUE } },
-    ], { ...layoutBase, title: "CSAT 점수 분포", showlegend: false }, config);
+    ], { ...baseLayout(), title: "CSAT 점수 분포", showlegend: false }, config);
 
     const byChan = groupBy(rows, r => r.channel);
     const chansByCsat = [...byChan.keys()].sort((a, b) => mean(byChan.get(a).map(r => r.csat)) - mean(byChan.get(b).map(r => r.csat)));
     Plotly.newPlot("chart-channel-csat", [
       { x: chansByCsat, y: chansByCsat.map(c => Number(fmt(mean(byChan.get(c).map(r => r.csat)), 2))), type: "bar", marker: { color: BLUE } },
-    ], { ...layoutBase, title: "채널별 CSAT 평균", showlegend: false }, config);
+    ], { ...baseLayout(), title: "채널별 CSAT 평균", showlegend: false }, config);
 
     const chansByRecontact = [...byChan.keys()].map(c => { const g = byChan.get(c); return { c, v: g.filter(r => r.recontact === "Y").length / g.length * 100 }; }).sort((a, b) => b.v - a.v);
     Plotly.newPlot("chart-channel-recontact", [
       { x: chansByRecontact.map(o => o.c), y: chansByRecontact.map(o => Number(fmt(o.v))), type: "bar", marker: { color: ORANGE } },
-    ], { ...layoutBase, title: "채널별 재문의율(%)", showlegend: false }, config);
+    ], { ...baseLayout(), title: "채널별 재문의율(%)", showlegend: false }, config);
   }
 
   function renderCsatDrilldown(rows) {
@@ -452,7 +460,7 @@ fetch("data.json").then(r => r.json()).then(d => {
       x: rates.map(r => r.b), y: rates.map(r => Number(fmt(r.rate))),
       type: "bar", marker: { color: rates.map(r => r.rate === maxRate ? CRITICAL : MUTED) },
       text: rates.map(r => `${fmt(r.rate)}% (n=${r.n})`), textposition: "outside",
-    }], { ...layoutBase, title: "재문의 횟수 구간별 이탈율", showlegend: false,
+    }], { ...baseLayout(), title: "재문의 횟수 구간별 이탈율", showlegend: false,
          shapes: [{ type: "line", x0: -0.5, x1: 2.5, y0: overall, y1: overall, line: { color: BLUE, dash: "dash" } }] }, config);
     return { byCust, bucketOf };
   }
@@ -463,7 +471,7 @@ fetch("data.json").then(r => r.json()).then(d => {
     Plotly.newPlot("chart-recontact-monthly", [{
       x: months, y: months.map(m => { const g = byMonth.get(m); return Number(fmt(g.filter(r => r.recontact === "Y").length / g.length * 100)); }),
       type: "scatter", mode: "lines+markers", line: { color: ORANGE },
-    }], { ...layoutBase, title: "월별 재문의율(%) 추이", showlegend: false }, config);
+    }], { ...baseLayout(), title: "월별 재문의율(%) 추이", showlegend: false }, config);
   }
 
   function renderChainDrilldown(rows, chainCtx) {
@@ -482,7 +490,7 @@ fetch("data.json").then(r => r.json()).then(d => {
     Plotly.newPlot("chart-grade", [{
       x: gradeOrder, y: gradeOrder.map(g => Number(fmt(byGrade.get(g).filter(c => c.churn === "Y").length / byGrade.get(g).length * 100))),
       type: "bar", marker: { color: BLUE },
-    }], { ...layoutBase, title: "회원등급별 이탈율(%)", showlegend: false }, config);
+    }], { ...baseLayout(), title: "회원등급별 이탈율(%)", showlegend: false }, config);
 
     const byRegion = groupBy(cust, c => c.region);
     const regions = [...byRegion.keys()].sort((a, b) => (byRegion.get(b).filter(c => c.churn === "Y").length / byRegion.get(b).length) - (byRegion.get(a).filter(c => c.churn === "Y").length / byRegion.get(a).length));
@@ -490,31 +498,50 @@ fetch("data.json").then(r => r.json()).then(d => {
       x: regions, y: regions.map(r => Number(fmt(byRegion.get(r).filter(c => c.churn === "Y").length / byRegion.get(r).length * 100))),
       type: "bar", marker: { color: regions.map(r => byRegion.get(r).length >= 30 ? BLUE : MUTED) },
       text: regions.map(r => `n=${byRegion.get(r).length}`), textposition: "outside",
-    }], { ...layoutBase, title: "지역별 이탈율(%) — 진한 막대만 표본 30건 이상", showlegend: false }, config);
+    }], { ...baseLayout(), title: "지역별 이탈율(%) — 진한 막대만 표본 30건 이상", showlegend: false }, config);
 
     const regionKeys = [...byRegion.keys()].filter(r => REGION_COORDS[r]);
-    const churnByRegion = regionKeys.map(r => byRegion.get(r).filter(c => c.churn === "Y").length / byRegion.get(r).length * 100);
+    const regionCounts = regionKeys.map(r => byRegion.get(r).length);
+    const regionChurned = regionKeys.map(r => byRegion.get(r).filter(c => c.churn === "Y").length);
+    const churnByRegion = regionKeys.map((r, i) => regionCounts[i] ? regionChurned[i] / regionCounts[i] * 100 : 0);
+    const mapCustomdata = regionKeys.map((r, i) => [r, regionCounts[i], regionChurned[i], Number(fmt(churnByRegion[i]))]);
     Plotly.newPlot("chart-region-map", [{
       type: "scattergeo", lat: regionKeys.map(r => REGION_COORDS[r][0]), lon: regionKeys.map(r => REGION_COORDS[r][1]),
-      text: regionKeys, mode: "markers+text", textposition: "top center",
+      text: regionKeys, customdata: mapCustomdata, mode: "markers",
+      hovertemplate: "<b>%{customdata.0}</b><br>고객수: %{customdata.1}명<br>이탈 고객수: %{customdata.2}명<br>이탈율: %{customdata.3}%<extra></extra>",
       marker: {
-        size: regionKeys.map(r => 8 + byRegion.get(r).length * 0.9), color: churnByRegion,
-        colorscale: SEQ_BLUE, cmin: 0, cmax: Math.max(...churnByRegion), colorbar: { title: "이탈율(%)" },
-        line: { width: 1, color: isDark ? "#1a1a19" : "#fcfcfb" },
+        // 면적 비례(sqrt) 크기 + 실제 이탈율 범위(cmin~cmax, 0 고정 아님)로 색상 대비를 살린다.
+        size: regionCounts.map(c => 22 + Math.sqrt(c) * 6), sizemode: "diameter",
+        color: churnByRegion, colorscale: SEQ_BLUE, cmin: Math.min(...churnByRegion), cmax: Math.max(...churnByRegion),
+        colorbar: { title: "이탈율(%)" }, opacity: 0.85,
+        line: { width: 1.5, color: isDark ? "#ffffff" : "#0b0b0b" },
       },
-    }], { ...layoutBase, title: "지역별 고객수(버블 크기) x 이탈율(색상)", showlegend: false,
-         geo: { scope: "asia", lataxis: { range: [32, 40] }, lonaxis: { range: [123, 132] }, showcountries: true, countrycolor: grid, showland: true, landcolor: isDark ? "#14181d" : "#f9f9f7", showocean: true, oceancolor: isDark ? "#0d1a26" : "#eef3f8", resolution: 50, bgcolor: "rgba(0,0,0,0)" } }, config);
+    }], { ...baseLayout(), title: "지역별 고객수(버블 크기) x 이탈율(색상) — 클릭하면 아래에 상세 표시", showlegend: false,
+         geo: { scope: "asia", lataxis: { range: [32, 40] }, lonaxis: { range: [123, 132] }, showcountries: true, countrycolor: grid, showland: true, landcolor: isDark ? "#14181d" : "#f9f9f7", showocean: true, oceancolor: isDark ? "#0d1a26" : "#eef3f8", resolution: 50, bgcolor: "rgba(0,0,0,0)" } }, config)
+      .then(gd => {
+        gd.removeAllListeners && gd.removeAllListeners("plotly_click");
+        gd.on("plotly_click", (ev) => {
+          const p = ev.points && ev.points[0];
+          if (!p) return;
+          const [region, count, churned, rate] = p.customdata;
+          document.getElementById("region-map-detail").innerHTML = `
+            <div class="card"><div class="label">${escapeHtml(region)} 고객수</div><div class="value">${count}명</div></div>
+            <div class="card"><div class="label">${escapeHtml(region)} 이탈 고객수</div><div class="value">${churned}명</div></div>
+            <div class="card"><div class="label">${escapeHtml(region)} 이탈율</div><div class="value neg">${rate}%</div></div>
+          `;
+        });
+      });
 
     const byCohort = groupBy(cust, c => c.join_date.slice(0, 7));
     const cohorts = [...byCohort.keys()].sort();
     Plotly.newPlot("chart-cohort", [{
       x: cohorts, y: cohorts.map(m => Number(fmt(byCohort.get(m).filter(c => c.churn === "Y").length / byCohort.get(m).length * 100))),
       type: "scatter", mode: "lines+markers", line: { color: VIOLET },
-    }], { ...layoutBase, title: "가입월 코호트별 이탈율(%)", showlegend: false }, config);
+    }], { ...baseLayout(), title: "가입월 코호트별 이탈율(%)", showlegend: false }, config);
 
     Plotly.newPlot("chart-age", [{
       x: cust.map(c => c.age), type: "histogram", xbins: { size: 5 }, marker: { color: AQUA },
-    }], { ...layoutBase, title: "고객 연령 분포", showlegend: false }, config);
+    }], { ...baseLayout(), title: "고객 연령 분포", showlegend: false }, config);
   }
 
   function renderCustomerDrilldown(cust) {

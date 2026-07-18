@@ -249,19 +249,27 @@ def fig_region_churn(cust):
 
 def fig_region_map(cust):
     counts = cust["region"].value_counts()
+    churned = cust.groupby("region")["churn_yn"].apply(lambda s: (s == "Y").sum())
     churn = cust.groupby("region")["churn_yn"].apply(lambda s: (s == "Y").mean() * 100)
     regions = [r for r in REGION_COORDS if r in counts.index]
     lats = [REGION_COORDS[r][0] for r in regions]
     lons = [REGION_COORDS[r][1] for r in regions]
+    rates = [float(churn[r]) for r in regions]
+    # 실제 이탈율 범위로 색상 스케일을 당겨써야 미세한 차이가 눈에 들어온다(0%~최댓값으로 두면 저채도 구간만 쓰임).
+    cmin, cmax = min(rates), max(rates)
+    sizes = [22 + (counts[r] ** 0.5) * 6 for r in regions]  # 면적 비례(sqrt) + 최소 가독 크기 확보
+    # customdata에 지역명까지 담아둔다 — Streamlit의 클릭 선택 이벤트 스키마는 "text"를 보장하지 않고
+    # customdata만 항상 포함하므로, 클릭 핸들러에서 필요한 값 전부를 여기서 꺼낼 수 있게 한다.
+    customdata = [[r, int(counts[r]), int(churned[r]), round(churn[r], 1)] for r in regions]
     fig = go.Figure(go.Scattergeo(
-        lat=lats, lon=lons, text=regions,
-        mode="markers+text", textposition="top center",
+        lat=lats, lon=lons, text=regions, customdata=customdata,
+        mode="markers",
+        hovertemplate="<b>%{customdata[0]}</b><br>고객수: %{customdata[1]}명<br>이탈 고객수: %{customdata[2]}명<br>이탈율: %{customdata[3]}%<extra></extra>",
         marker=dict(
-            size=[8 + counts[r] * 0.9 for r in regions],
-            color=[churn[r] for r in regions],
-            colorscale=SEQUENTIAL_BLUE, cmin=0, cmax=float(churn.max()),
+            size=sizes, sizemode="diameter",
+            color=rates, colorscale=SEQUENTIAL_BLUE, cmin=cmin, cmax=cmax,
             colorbar=dict(title="이탈율(%)"),
-            line=dict(width=1, color="#fcfcfb"),
+            line=dict(width=1.5, color="#0b0b0b"), opacity=0.85,
         ),
     ))
     fig.update_geos(
@@ -270,7 +278,7 @@ def fig_region_map(cust):
         showocean=True, oceancolor="#eef3f8", showlakes=False, resolution=50,
     )
     fig.update_layout(height=460)
-    return _layout(fig, "지역별 고객수(버블 크기) x 이탈율(색상)", show_legend=False)
+    return _layout(fig, "지역별 고객수(버블 크기) x 이탈율(색상) — 클릭하면 아래에 상세 표시", show_legend=False)
 
 
 def fig_join_cohort(cust):
