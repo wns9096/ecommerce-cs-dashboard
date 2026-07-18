@@ -20,7 +20,9 @@ cons["consult_date"] = pd.to_datetime(cons["consult_date"])
 
 sat = pd.read_csv(f"{BASE}/ecommerce_satisfaction.csv", encoding="utf-8-sig")
 cust = pd.read_csv(f"{BASE}/ecommerce_customers.csv", encoding="utf-8-sig")
+usage = pd.read_csv(f"{BASE}/ecommerce_usage_history.csv", encoding="utf-8-sig")
 merged = sat.merge(cons, on=["consult_id", "customer_id"], how="left").merge(cust, on="customer_id", how="left")
+avg_purchase = usage.groupby("customer_id")["purchase_amount"].mean()
 
 voc_rows = [
     {
@@ -31,6 +33,7 @@ voc_rows = [
         "sentiment": row["감정분류"],
         "text": row["문의내용"],
         "csat": None if pd.isna(row["만족도점수(CSAT)"]) else float(row["만족도점수(CSAT)"]),
+        "customer_id": row["고객ID"],
     }
     for _, row in voc.iterrows()
 ]
@@ -57,11 +60,16 @@ cust_rows = [
         "customer_id": row["customer_id"], "name": row["name"], "age": int(row["age"]),
         "gender": row["gender"], "region": row["region"], "grade": row["membership_grade"],
         "join_date": row["join_date"], "churn": row["churn_yn"],
+        "avg_purchase": None if row["customer_id"] not in avg_purchase.index or pd.isna(avg_purchase[row["customer_id"]])
+                        else round(float(avg_purchase[row["customer_id"]]), 0),
     }
     for _, row in cust.iterrows()
 ]
 
-data = {"voc": voc_rows, "merged": merged_rows, "cust": cust_rows}
+overall = {"total": int(len(cust)), "churned": int((cust["churn_yn"] == "Y").sum())}
+overall["rate"] = round(overall["churned"] / overall["total"] * 100, 1)
+
+data = {"voc": voc_rows, "merged": merged_rows, "cust": cust_rows, "overall": overall}
 
 with open("data.json", "w", encoding="utf-8") as f:
     json.dump(data, f, ensure_ascii=False)
