@@ -69,6 +69,12 @@ def _layout(fig, title, show_legend=True):
     return fig
 
 
+def overall_churn_stats(cust):
+    total = len(cust)
+    churned = int((cust["churn_yn"] == "Y").sum())
+    return {"total": total, "churned": churned, "rate": round(churned / total * 100, 1)}
+
+
 # ---------------- VOC 현황 ----------------
 
 def filter_voc(voc, date_range, categories, channels):
@@ -115,6 +121,22 @@ def fig_voc_sentiment_donut(df):
     colors = [SENTIMENT_COLOR.get(k, MUTED) for k in g.index]
     fig = go.Figure(go.Pie(labels=g.index, values=g.values, hole=0.55, marker=dict(colors=colors)))
     return _layout(fig, "전체 감정분류 비율")
+
+
+def fig_voc_churn_history(voc, cust):
+    """해지관련(탈퇴 문의) 부정 VOC 이력 유무별 이탈율 — 이 데이터엔 '해지관련' 대분류가 따로 없어
+    가장 가까운 소분류인 '탈퇴 문의'(회원/계정)로 대체했다."""
+    flagged_ids = set(voc[(voc["소분류"] == "탈퇴 문의") & (voc["감정분류"] == "부정")]["고객ID"].dropna())
+    has_history = cust["customer_id"].isin(flagged_ids)
+    overall_rate = (cust["churn_yn"] == "Y").mean() * 100
+    flagged_rate = (cust.loc[has_history, "churn_yn"] == "Y").mean() * 100 if has_history.any() else 0
+    labels = ["전체 고객", "해지(탈퇴 문의) 부정 VOC 이력 있음"]
+    values = [overall_rate, flagged_rate]
+    colors = [MUTED, CRITICAL]
+    fig = go.Figure(go.Bar(x=labels, y=[round(v, 1) for v in values], marker_color=colors,
+                           text=[f"{v:.1f}%" for v in values], textposition="outside"))
+    n = int(has_history.sum())
+    return _layout(fig, f"해지관련 부정 VOC 이력 유무별 이탈율 (이력 있음 n={n})", show_legend=False)
 
 
 def fig_voc_breakdown(df, category, sentiment="부정"):
@@ -180,6 +202,22 @@ def fig_channel_recontact(df):
     g = df.groupby("channel")["is_recontact"].apply(lambda s: (s == "Y").mean() * 100).sort_values(ascending=False)
     fig = go.Figure(go.Bar(x=g.index, y=g.values.round(1), marker_color=ORANGE))
     return _layout(fig, "채널별 재문의율(%)", show_legend=False)
+
+
+def fig_channel_csat_recontact_combo(df):
+    """교안이 명시적으로 요구하는 이중축(dual-axis) 결합차트 버전 —
+    dataviz 원칙상 단일축 분리가 더 낫지만(위 두 함수), 이번 과제 요구사항 자체가 결합차트라 별도로 만든다."""
+    csat = df.groupby("channel")["csat"].mean().sort_values()
+    recontact = df.groupby("channel")["is_recontact"].apply(lambda s: (s == "Y").mean() * 100).reindex(csat.index)
+    fig = go.Figure()
+    fig.add_bar(x=csat.index, y=csat.values.round(2), name="CSAT 평균", marker_color=BLUE, yaxis="y")
+    fig.add_scatter(x=recontact.index, y=recontact.values.round(1), name="재문의율(%)", mode="lines+markers",
+                    line=dict(color=ORANGE, width=2), yaxis="y2")
+    fig.update_layout(
+        yaxis=dict(title="CSAT 평균", range=[0, 5]),
+        yaxis2=dict(title="재문의율(%)", overlaying="y", side="right", range=[0, 40]),
+    )
+    return _layout(fig, "채널별 CSAT x 재문의율 (결합차트)")
 
 
 # ---------------- 재문의 · 이탈 ----------------
@@ -291,6 +329,26 @@ def fig_join_cohort(cust):
 def fig_age_dist(cust):
     fig = go.Figure(go.Histogram(x=cust["age"], xbins=dict(size=5), marker_color=AQUA))
     return _layout(fig, "고객 연령 분포", show_legend=False)
+
+
+def fig_tenure_usage_scatter(cust, usage, ref_date="2025-12-31"):
+    tenure = ((pd.Timestamp(ref_date) - cust["join_date"]).dt.days / 30.44).round(1)
+    avg_purchase = usage.groupby("customer_id")["purchase_amount"].mean()
+    df = cust.assign(tenure_months=tenure).merge(
+        avg_purchase.rename("avg_purchase"), on="customer_id", how="left"
+    ).dropna(subset=["avg_purchase"])
+    fig = go.Figure()
+    for churn_val, color, name in [("N", BLUE, "유지"), ("Y", CRITICAL, "이탈")]:
+        sub = df[df["churn_yn"] == churn_val]
+        fig.add_scatter(
+            x=sub["tenure_months"], y=sub["avg_purchase"], mode="markers", name=name,
+            marker=dict(color=color, size=8, opacity=0.65),
+            customdata=sub[["customer_id"]].values,
+            hovertemplate="고객ID: %{customdata[0]}<br>가입기간: %{x}개월<br>월평균 구매금액: %{y:,.0f}원<extra>" + name + "</extra>",
+        )
+    fig.update_xaxes(title="가입기간(개월)")
+    fig.update_yaxes(title="월평균 구매금액(원)")
+    return _layout(fig, "가입기간 x 이용량(월평균 구매금액) 산점도")
 
 
 def drilldown_customers(cust, grades, regions):

@@ -2,9 +2,16 @@ import streamlit as st
 
 import analytics as az
 
-st.set_page_config(page_title="CS 데이터 인사이트 대시보드", layout="wide")
+st.set_page_config(page_title="이효준 - 고객은 왜 이탈하는가", layout="wide")
 
-st.title("이커머스 CS 데이터 인사이트 대시보드")
+st.title("이효준 — 고객은 왜 이탈하는가: 이커머스 CS 데이터 인사이트 대시보드")
+
+data = az.load_data()
+overall = az.overall_churn_stats(data["cust"])
+m0_1, m0_2, m0_3 = st.columns(3)
+m0_1.metric("전체 고객 수", f"{overall['total']}명")
+m0_2.metric("이탈 고객 수", f"{overall['churned']}명")
+m0_3.metric("전체 이탈율", f"{overall['rate']}%")
 
 st.info(
     "**이번 2주차 핵심 요약(정직한 버전)**\n\n"
@@ -14,7 +21,6 @@ st.info(
     "(일부는 반대 방향) — 처방적 제안은 데이터 한계로 보류"
 )
 
-data = az.load_data()
 voc, cust, cons, sat, merged = data["voc"], data["cust"], data["cons"], data["sat"], data["merged"]
 
 st.sidebar.markdown(
@@ -52,6 +58,10 @@ with tab1:
         st.plotly_chart(az.fig_voc_channel_negrate(fdf), use_container_width=True)
 
     st.plotly_chart(az.fig_voc_sentiment_donut(fdf), use_container_width=True)
+
+    st.plotly_chart(az.fig_voc_churn_history(voc, cust), use_container_width=True)
+    st.caption("교안엔 '해지관련' VOC 대분류가 있지만 이 데이터엔 없어, 가장 가까운 소분류 '탈퇴 문의'(회원/계정)로 대체했다. "
+               "결과: 이력 있는 고객(n=13)의 이탈율(7.7%)이 전체 평균(11.3%)보다 오히려 낮음 — 반대 방향(표본이 작고 `churn_yn`이 VOC와 독립 생성된 데이터 한계).")
 
     st.subheader("대분류별 소분류 분해")
     cat_options = sorted(fdf["대분류"].unique()) if len(fdf) else sorted(voc["대분류"].unique())
@@ -98,6 +108,10 @@ with tab2:
         st.plotly_chart(az.fig_channel_csat(fm), use_container_width=True)
     with c2:
         st.plotly_chart(az.fig_channel_recontact(fm), use_container_width=True)
+
+    st.plotly_chart(az.fig_channel_csat_recontact_combo(fm), use_container_width=True)
+    st.caption("위 2개 단일축 차트가 더 읽기 쉽지만(2개 지표를 한 축에 겹치면 비교가 왜곡될 수 있음), "
+               "과제에서 요구하는 결합차트(dual-axis) 형태도 함께 남겨둔다.")
 
     with st.expander("🔍 드릴다운: 저만족(CSAT 1~2점) 상담 코멘트 조회"):
         cat_options = ["전체"] + sorted(fm["category"].dropna().unique().tolist())
@@ -150,6 +164,8 @@ with tab4:
         st.plotly_chart(az.fig_join_cohort(cust), use_container_width=True)
     with c4:
         st.plotly_chart(az.fig_age_dist(cust), use_container_width=True)
+
+    st.plotly_chart(az.fig_tenure_usage_scatter(cust, data["usage"]), use_container_width=True)
 
     with st.expander("🔍 드릴다운: 고객 목록 조회"):
         d1, d2 = st.columns(2)
