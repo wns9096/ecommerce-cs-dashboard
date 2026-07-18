@@ -21,13 +21,22 @@
   .subtitle { color: var(--muted); margin-bottom: 20px; font-size: 0.9rem; }
   .info-box { background: var(--info-bg); border: 1px solid var(--accent); border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 0.92rem; line-height: 1.6; }
   .info-box b { display: block; margin-bottom: 6px; }
-  .disclaimer { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: 0.85rem; color: var(--muted); }
+  .disclaimer { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; font-size: 0.85rem; color: var(--muted); }
+  .filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; font-size: 0.85rem; }
+  .filterbar label { color: var(--muted); margin-right: 4px; }
+  .filterbar input[type="date"] { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
+  .filterbar .fbcount { color: var(--muted); margin-left: auto; }
   .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
   .tab-btn { background: none; border: none; padding: 10px 16px; font-size: 0.95rem; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
   .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
   .panel { display: none; }
   .panel.active { display: block; }
-  .chart { width: 100%; min-height: 360px; margin-bottom: 14px; }
+  .chart { width: 100%; min-height: 340px; margin-bottom: 14px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 720px) { .row2 { grid-template-columns: 1fr; } }
+  .dimfilter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .chip { border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 0.8rem; cursor: pointer; user-select: none; color: var(--muted); background: var(--bg); }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
   .note { font-size: 0.92rem; line-height: 1.6; margin: 6px 0; }
   .caption { color: var(--muted); font-size: 0.82rem; margin-top: 4px; }
   .scorecards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
@@ -36,12 +45,21 @@
   .card .value { font-size: 1.8rem; font-weight: 700; }
   .card .desc { color: var(--muted); font-size: 0.78rem; margin-top: 6px; }
   .neg { color: var(--danger); }
+  details.drilldown { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin: 10px 0 16px; }
+  details.drilldown summary { cursor: pointer; font-weight: 600; }
+  .dd-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0; }
+  .dd-controls select { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+  .dd-table-wrap { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+  table.dd-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  table.dd-table th, table.dd-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table.dd-table td.wrap-text { white-space: normal; min-width: 220px; }
+  table.dd-table th { position: sticky; top: 0; background: var(--card-bg); }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>이커머스 CS 데이터 인사이트 대시보드</h1>
-  <div class="subtitle">모두의연구소 2주차 프로젝트 — HTML/Plotly.js 정적 버전 (Streamlit 버전과 동일한 데이터·결론)</div>
+  <div class="subtitle">모두의연구소 2주차 프로젝트 — HTML/Plotly.js 정적 버전 (Streamlit 버전과 동일한 데이터·필터·드릴다운)</div>
 
   <div class="info-box">
     <b>이번 2주차 핵심 요약 (정직한 버전)</b>
@@ -53,7 +71,13 @@
   <div class="disclaimer">
     이 대시보드는 모두의연구소 2주차 프로젝트로 제작되었습니다. <code>raw/</code>의 데이터는 <b>100% 가상(합성) 이커머스 CS 데이터</b>이며 실제 서비스 데이터가 아닙니다.
     일부 탭의 결과는 노이즈성이거나 예상과 반대 방향으로 나왔고, 이를 숨기지 않고 그대로 표시합니다.
-    차트 데이터는 배포 시점에 <code>build_data.py</code>로 미리 계산해 구운 <code>data.json</code>을 읽어 그립니다(정적 호스팅 — 서버에서 실시간 재계산하지 않음).
+    <code>data.json</code>은 배포 시점에 <code>build_data.py</code>로 구운 원자료(raw rows)이며, 아래 필터는 이 브라우저 안에서 즉시 재계산됩니다(서버 재계산 아님).
+  </div>
+
+  <div class="filterbar">
+    <span><label for="date-from">기간</label><input type="date" id="date-from" /> ~ <input type="date" id="date-to" /></span>
+    <button class="chip" id="date-reset">전체 기간</button>
+    <span class="fbcount" id="fbcount"></span>
   </div>
 
   <div class="tabs">
@@ -64,18 +88,64 @@
   </div>
 
   <div class="panel active" id="tab-voc">
+    <div style="margin-bottom:8px;"><b style="font-size:0.85rem;color:var(--muted)">VOC 대분류</b></div>
+    <div class="dimfilter" id="voc-cat-chips"></div>
+    <div style="margin-bottom:8px;"><b style="font-size:0.85rem;color:var(--muted)">VOC 채널</b></div>
+    <div class="dimfilter" id="voc-channel-chips"></div>
+
     <div id="chart-voc-category" class="chart"></div>
     <div id="chart-voc-monthly" class="chart"></div>
+    <div class="row2">
+      <div id="chart-voc-channel-count" class="chart"></div>
+      <div id="chart-voc-channel-negrate" class="chart"></div>
+    </div>
+    <div id="chart-voc-sentiment" class="chart"></div>
+
+    <h3 style="margin-top:24px;">대분류별 소분류 분해</h3>
+    <div class="dd-controls">
+      <select id="voc-breakdown-cat"></select>
+      <select id="voc-breakdown-senti">
+        <option value="부정" selected>부정</option>
+        <option value="중립">중립</option>
+        <option value="긍정">긍정</option>
+        <option value="전체">전체</option>
+      </select>
+    </div>
     <div id="chart-voc-worst" class="chart"></div>
+
+    <details class="drilldown">
+      <summary>🔍 드릴다운: 원문 문의내용 조회</summary>
+      <div class="dd-controls">
+        <select id="voc-dd-subcat"></select>
+      </div>
+      <div class="dd-table-wrap"><table class="dd-table" id="voc-dd-table"></table></div>
+    </details>
+
     <p class="note"><b>해석</b>: 대분류 간 부정 비율 차이가 크지 않다는 것 자체가, 특정 카테고리 하나의 문제가 아니라 부정 여론이 고르게 분포한다는 신호로 보인다.</p>
     <p class="note"><b>시사점</b>: 결제/환불을 하나로 뭉뚱그리지 않고 쿠폰/포인트·결제오류·이중결제·환불속도·부분환불 정책을 개별 과제로 분리해 개선하는 것이 효과적일 것으로 보인다.</p>
     <p class="caption">신뢰도: 높음 (데이터 직접 확인)</p>
   </div>
 
   <div class="panel" id="tab-csat">
+    <div style="margin-bottom:8px;"><b style="font-size:0.85rem;color:var(--muted)">상담 채널</b></div>
+    <div class="dimfilter" id="cons-channel-chips"></div>
+
     <div class="scorecards" id="scorecards"></div>
     <div id="chart-csat-category" class="chart"></div>
-    <div id="chart-channel-combo" class="chart"></div>
+    <div id="chart-csat-hist" class="chart"></div>
+    <div class="row2">
+      <div id="chart-channel-csat" class="chart"></div>
+      <div id="chart-channel-recontact" class="chart"></div>
+    </div>
+
+    <details class="drilldown">
+      <summary>🔍 드릴다운: 저만족(CSAT 1~2점) 상담 코멘트 조회</summary>
+      <div class="dd-controls">
+        <select id="csat-dd-cat"></select>
+      </div>
+      <div class="dd-table-wrap"><table class="dd-table" id="csat-dd-table"></table></div>
+    </details>
+
     <p class="note"><b>해석</b>: NPS 평균의 함정은 재현되지만(6.60 → 정식계산 -14.1), 채널·카테고리별 효과는 텔레콤 원본만큼 뚜렷하지 않다.</p>
     <p class="note"><b>시사점</b>: 이 데이터로 '어느 채널을 우선 개선해야 하는가'를 확정하기는 어렵다. 다만 평균만 보고 안심하면 안 된다는 방법론적 교훈은 유효하다.</p>
     <p class="caption">신뢰도: 중간 (패턴 추정)</p>
@@ -83,14 +153,45 @@
 
   <div class="panel" id="tab-chain">
     <div id="chart-chain" class="chart"></div>
+    <div id="chart-recontact-monthly" class="chart"></div>
+
+    <details class="drilldown">
+      <summary>🔍 드릴다운: 재문의 구간별 고객 목록</summary>
+      <div class="dd-controls">
+        <select id="chain-dd-bucket">
+          <option value="재문의 없음">재문의 없음</option>
+          <option value="재문의 1회">재문의 1회</option>
+          <option value="재문의 2회+">재문의 2회+</option>
+        </select>
+      </div>
+      <div class="dd-table-wrap"><table class="dd-table" id="chain-dd-table"></table></div>
+    </details>
+
     <p class="note"><b>해석</b>: 반복재문의(2회+) 고객의 이탈율이 재문의 없는 고객보다 오히려 낮게 나와, 텔레콤 원본과 반대 방향이다.</p>
     <p class="note"><b>시사점</b>: 이 결과를 실제 비즈니스 결론으로 사용하면 안 된다. 체인 분석 방법론 자체(횟수로 쪼개서 보기)는 유효하다.</p>
     <p class="caption">신뢰도: 낮음 (가설 — 데이터 한계로 판단)</p>
   </div>
 
   <div class="panel" id="tab-customer">
-    <div id="chart-grade" class="chart"></div>
-    <div id="chart-region" class="chart"></div>
+    <div class="row2">
+      <div id="chart-grade" class="chart"></div>
+      <div id="chart-region" class="chart"></div>
+    </div>
+    <div id="chart-region-map" class="chart" style="min-height:460px;"></div>
+    <div class="row2">
+      <div id="chart-cohort" class="chart"></div>
+      <div id="chart-age" class="chart"></div>
+    </div>
+
+    <details class="drilldown">
+      <summary>🔍 드릴다운: 고객 목록 조회</summary>
+      <div class="dd-controls">
+        <select id="cust-dd-grade"><option value="">전체 등급</option></select>
+        <select id="cust-dd-region"><option value="">전체 지역</option></select>
+      </div>
+      <div class="dd-table-wrap"><table class="dd-table" id="cust-dd-table"></table></div>
+    </details>
+
     <p class="note"><b>해석</b>: 회원등급별 이탈율 차이는 작고 상식과 다른 방향으로도 나타난다. 지역은 제주(n=30)를 제외한 전 지역이 표본 30건 미만이라 참고용에 그친다.</p>
     <p class="note"><b>시사점</b>: 규칙 기반 위험 스코어링도 신호 간 방향이 엇갈려 합산 점수가 작동하지 않음을 확인했다 — 처방적 제안(Top3)은 데이터 한계로 보류한다.</p>
     <p class="caption">신뢰도: 낮음 (가설 — 표본·데이터 생성 한계)</p>
@@ -109,6 +210,19 @@ const layoutBase = {
 };
 const config = { responsive: true, displayModeBar: false };
 
+// dataviz 스킬 검증 팔레트
+const BLUE = "#2a78d6", CRITICAL = "#d03b3b", GOOD = "#0ca30c", MUTED = "#898781", ORANGE = "#eb6834", VIOLET = "#4a3aa7", AQUA = "#1baf7a";
+const SENTIMENT_COLOR = { "긍정": GOOD, "중립": MUTED, "부정": CRITICAL };
+const SEQ_BLUE = [[0, "#cde2fb"], [0.35, "#6da7ec"], [0.65, "#2a78d6"], [1, "#0d366b"]];
+const REGION_COORDS = {
+  "서울": [37.5665, 126.9780], "부산": [35.1796, 129.0756], "대구": [35.8714, 128.6014],
+  "인천": [37.4563, 126.7052], "광주": [35.1595, 126.8526], "대전": [36.3504, 127.3845],
+  "울산": [35.5384, 129.3114], "경기": [37.4138, 127.5183], "강원": [37.8228, 128.1555],
+  "충북": [36.6357, 127.4917], "충남": [36.5184, 126.8000], "전북": [35.7175, 127.1530],
+  "전남": [34.8679, 126.9910], "경북": [36.4919, 128.8889], "경남": [35.4606, 128.2132],
+  "제주": [33.4996, 126.5312],
+};
+
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -119,66 +233,338 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
   });
 });
 
+function uniq(arr) { return [...new Set(arr)]; }
+function groupBy(rows, keyFn) {
+  const m = new Map();
+  for (const r of rows) { const k = keyFn(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }
+  return m;
+}
+function mean(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0; }
+function fmt(n, d = 1) { return Number(n).toFixed(d); }
+function monthOf(dateStr) { return dateStr.slice(0, 7); }
+
 fetch("data.json").then(r => r.json()).then(d => {
-  // VOC 카테고리
-  Plotly.newPlot("chart-voc-category", [
-    { x: d.voc_category.labels, y: d.voc_category.전체, name: "전체 건수", type: "bar", marker: { color: "#cfd8dc" } },
-    { x: d.voc_category.labels, y: d.voc_category.부정, name: "부정 건수", type: "bar", marker: { color: "#e53935" } },
-  ], { ...layoutBase, title: "대분류별 전체·부정 VOC 건수", barmode: "overlay" }, config);
+  const state = { dateFrom: null, dateTo: null, vocCats: new Set(), vocChannels: new Set(), consChannels: new Set() };
 
-  // VOC 월별
-  Plotly.newPlot("chart-voc-monthly", [
-    { x: d.voc_monthly.labels, y: d.voc_monthly.전체, name: "전체 건수", type: "scatter", mode: "lines+markers", line: { color: "#1e88e5" } },
-    { x: d.voc_monthly.labels, y: d.voc_monthly.부정, name: "부정 건수", type: "scatter", mode: "lines+markers", line: { color: "#e53935" } },
-  ], { ...layoutBase, title: "월별 전체·부정 VOC 추이" }, config);
+  const vocDates = d.voc.map(r => r.date).sort();
+  const consDates = d.merged.map(r => r.date).sort();
+  const minDate = [vocDates[0], consDates[0]].sort()[0];
+  const maxDate = [vocDates[vocDates.length - 1], consDates[consDates.length - 1]].sort().pop();
+  document.getElementById("date-from").min = minDate; document.getElementById("date-from").max = maxDate;
+  document.getElementById("date-to").min = minDate; document.getElementById("date-to").max = maxDate;
+  document.getElementById("date-from").value = minDate; document.getElementById("date-to").value = maxDate;
+  state.dateFrom = minDate; state.dateTo = maxDate;
 
-  // 결제/환불 부정 유형 분해
-  Plotly.newPlot("chart-voc-worst", [
-    { x: d.voc_worst_breakdown.values, y: d.voc_worst_breakdown.labels, type: "bar", orientation: "h", marker: { color: "#1e88e5" }, text: d.voc_worst_breakdown.values, textposition: "outside" },
-  ], { ...layoutBase, title: "결제/환불 부정 VOC 유형 분해" }, config);
+  function inRange(dateStr) { return dateStr >= state.dateFrom && dateStr <= state.dateTo; }
 
-  // 스코어카드
-  const s = d.scorecard;
-  const npsClass = s.nps_score < 0 ? "neg" : "";
-  document.getElementById("scorecards").innerHTML = `
-    <div class="card"><div class="label">CSAT 평균</div><div class="value">${s.csat_mean} / 5</div><div class="desc">n=${s.n}건</div></div>
-    <div class="card"><div class="label">NPS 평균</div><div class="value">${s.nps_mean} / 10</div><div class="desc">참고용(평균 지표)</div></div>
-    <div class="card"><div class="label">NPS 점수</div><div class="value ${npsClass}">${s.nps_score}</div><div class="desc">추천자%-비판자%(정식 계산)</div></div>
-    <div class="card"><div class="label">저만족 비율</div><div class="value neg">${s.low_ratio}%</div><div class="desc">csat 1~2점 비중</div></div>
-  `;
+  // 칩(다중선택 필터) 렌더
+  function renderChips(containerId, options, selectedSet, onChange) {
+    const el = document.getElementById(containerId);
+    el.innerHTML = "";
+    options.forEach(opt => {
+      const chip = document.createElement("span");
+      chip.className = "chip" + (selectedSet.has(opt) ? " on" : "");
+      chip.textContent = opt;
+      chip.addEventListener("click", () => {
+        if (selectedSet.has(opt)) selectedSet.delete(opt); else selectedSet.add(opt);
+        chip.classList.toggle("on");
+        onChange();
+      });
+      el.appendChild(chip);
+    });
+  }
 
-  // 카테고리별 CSAT
-  Plotly.newPlot("chart-csat-category", [
-    { x: d.csat_by_category.labels, y: d.csat_by_category.values, type: "bar", marker: { color: "#90a4ae" } },
-  ], { ...layoutBase, title: "상담 카테고리별 CSAT 평균",
-       shapes: [{ type: "line", x0: -0.5, x1: d.csat_by_category.labels.length - 0.5, y0: d.csat_by_category.overall, y1: d.csat_by_category.overall, line: { color: "#e53935", dash: "dash" } }] }, config);
+  const vocCatOptions = uniq(d.voc.map(r => r.cat)).sort();
+  const vocChannelOptions = uniq(d.voc.map(r => r.channel)).sort();
+  const consChannelOptions = uniq(d.merged.map(r => r.channel)).sort();
 
-  // 채널 결합차트
-  Plotly.newPlot("chart-channel-combo", [
-    { x: d.channel_combo.labels, y: d.channel_combo.csat, name: "CSAT 평균", type: "bar", marker: { color: "#1e88e5" }, yaxis: "y" },
-    { x: d.channel_combo.labels, y: d.channel_combo.recontact, name: "재문의율(%)", type: "scatter", mode: "lines+markers", line: { color: "#fb8c00" }, yaxis: "y2" },
-  ], { ...layoutBase, title: "채널별 CSAT x 재문의율", yaxis: { title: "CSAT", range: [0, 5] }, yaxis2: { title: "재문의율(%)", overlaying: "y", side: "right", range: [0, 40] } }, config);
+  renderChips("voc-cat-chips", vocCatOptions, state.vocCats, () => renderAll());
+  renderChips("voc-channel-chips", vocChannelOptions, state.vocChannels, () => renderAll());
+  renderChips("cons-channel-chips", consChannelOptions, state.consChannels, () => renderAll());
 
-  // 체인 분석
-  const chainColors = d.chain.이탈율.map(v => v === Math.max(...d.chain.이탈율) ? "#e53935" : "#90a4ae");
-  Plotly.newPlot("chart-chain", [
-    { x: d.chain.labels, y: d.chain.이탈율, type: "bar", marker: { color: chainColors }, text: d.chain.이탈율.map((v,i) => `${v}% (n=${d.chain.건수[i]})`), textposition: "outside" },
-  ], { ...layoutBase, title: "재문의 횟수 구간별 이탈율",
-       shapes: [{ type: "line", x0: -0.5, x1: 2.5, y0: d.chain.overall, y1: d.chain.overall, line: { color: "#1e88e5", dash: "dash" } }] }, config);
+  document.getElementById("date-from").addEventListener("change", e => { state.dateFrom = e.target.value; renderAll(); });
+  document.getElementById("date-to").addEventListener("change", e => { state.dateTo = e.target.value; renderAll(); });
+  document.getElementById("date-reset").addEventListener("click", () => {
+    state.dateFrom = minDate; state.dateTo = maxDate;
+    document.getElementById("date-from").value = minDate; document.getElementById("date-to").value = maxDate;
+    renderAll();
+  });
 
-  // 회원등급 이탈
-  Plotly.newPlot("chart-grade", [
-    { x: d.grade_churn.labels, y: d.grade_churn.values, type: "bar", marker: { color: "#1e88e5" } },
-  ], { ...layoutBase, title: "회원등급별 이탈율(%)",
-       shapes: [{ type: "line", x0: -0.5, x1: d.grade_churn.labels.length - 0.5, y0: d.grade_churn.overall, y1: d.grade_churn.overall, line: { color: "#e53935", dash: "dash" } }] }, config);
+  function filteredVoc() {
+    return d.voc.filter(r => inRange(r.date)
+      && (state.vocCats.size === 0 || state.vocCats.has(r.cat))
+      && (state.vocChannels.size === 0 || state.vocChannels.has(r.channel)));
+  }
+  function filteredMerged() {
+    return d.merged.filter(r => inRange(r.date)
+      && (state.consChannels.size === 0 || state.consChannels.has(r.channel)));
+  }
 
-  // 지역 이탈 (30건 미만 회색)
-  const regionColors = d.region_churn.counts.map(c => c < 30 ? "#90a4ae" : "#1e88e5");
-  Plotly.newPlot("chart-region", [
-    { x: d.region_churn.labels, y: d.region_churn.values, type: "bar", marker: { color: regionColors } },
-  ], { ...layoutBase, title: "지역별 이탈율(%) — 회색=표본 30건 미만" }, config);
-}).catch(err => {
-  document.querySelector(".wrap").insertAdjacentHTML("afterbegin", `<div class="disclaimer" style="border-color:var(--danger)">data.json을 불러오지 못했습니다: ${err}. build_data.py를 먼저 실행했는지 확인하세요.</div>`);
+  function renderVocCategory(rows) {
+    const byCat = groupBy(rows, r => r.cat);
+    const cats = [...byCat.keys()].sort((a, b) => byCat.get(b).length - byCat.get(a).length);
+    const total = cats.map(c => byCat.get(c).length);
+    const neg = cats.map(c => byCat.get(c).filter(r => r.sentiment === "부정").length);
+    Plotly.newPlot("chart-voc-category", [
+      { x: cats, y: total, name: "전체 건수", type: "bar", marker: { color: MUTED } },
+      { x: cats, y: neg, name: "부정 건수", type: "bar", marker: { color: CRITICAL } },
+    ], { ...layoutBase, title: "대분류별 전체·부정 VOC 건수", barmode: "group" }, config);
+  }
+
+  function renderVocMonthly(rows) {
+    const byMonth = groupBy(rows, r => monthOf(r.date));
+    const months = [...byMonth.keys()].sort();
+    Plotly.newPlot("chart-voc-monthly", [
+      { x: months, y: months.map(m => byMonth.get(m).length), name: "전체 건수", type: "scatter", mode: "lines+markers", line: { color: BLUE } },
+      { x: months, y: months.map(m => byMonth.get(m).filter(r => r.sentiment === "부정").length), name: "부정 건수", type: "scatter", mode: "lines+markers", line: { color: CRITICAL } },
+    ], { ...layoutBase, title: "월별 전체·부정 VOC 추이" }, config);
+  }
+
+  function renderVocChannel(rows) {
+    const byChan = groupBy(rows, r => r.channel);
+    const chans = [...byChan.keys()].sort((a, b) => byChan.get(b).length - byChan.get(a).length);
+    Plotly.newPlot("chart-voc-channel-count", [
+      { x: chans, y: chans.map(c => byChan.get(c).length), type: "bar", marker: { color: BLUE } },
+    ], { ...layoutBase, title: "채널별 VOC 건수", showlegend: false }, config);
+    const negRate = chans.map(c => { const g = byChan.get(c); return g.filter(r => r.sentiment === "부정").length / g.length * 100; })
+      .map((v, i) => ({ v, c: chans[i] })).sort((a, b) => b.v - a.v);
+    Plotly.newPlot("chart-voc-channel-negrate", [
+      { x: negRate.map(o => o.c), y: negRate.map(o => Number(fmt(o.v))), type: "bar", marker: { color: CRITICAL } },
+    ], { ...layoutBase, title: "채널별 부정 VOC 비율(%)", showlegend: false }, config);
+  }
+
+  function renderVocSentiment(rows) {
+    const bySenti = groupBy(rows, r => r.sentiment);
+    const keys = [...bySenti.keys()];
+    Plotly.newPlot("chart-voc-sentiment", [{
+      labels: keys, values: keys.map(k => bySenti.get(k).length), type: "pie", hole: 0.55,
+      marker: { colors: keys.map(k => SENTIMENT_COLOR[k] || MUTED) },
+    }], { ...layoutBase, title: "전체 감정분류 비율" }, config);
+  }
+
+  function renderVocBreakdown(rows) {
+    const catSel = document.getElementById("voc-breakdown-cat");
+    const prevCat = catSel.value;
+    const catsPresent = uniq(rows.map(r => r.cat)).sort();
+    catSel.innerHTML = catsPresent.map(c => `<option value="${c}">${c}</option>`).join("");
+    catSel.value = catsPresent.includes(prevCat) ? prevCat : (catsPresent.includes("결제/환불") ? "결제/환불" : catsPresent[0]);
+    const senti = document.getElementById("voc-breakdown-senti").value;
+    const cat = catSel.value;
+    let sub = rows.filter(r => r.cat === cat);
+    if (senti !== "전체") sub = sub.filter(r => r.sentiment === senti);
+    const bySub = groupBy(sub, r => r.sub);
+    const subs = [...bySub.keys()].sort((a, b) => bySub.get(a).length - bySub.get(b).length);
+    const color = SENTIMENT_COLOR[senti] || BLUE;
+    Plotly.newPlot("chart-voc-worst", [{
+      x: subs.map(s => bySub.get(s).length), y: subs, type: "bar", orientation: "h",
+      marker: { color }, text: subs.map(s => bySub.get(s).length), textposition: "outside",
+    }], { ...layoutBase, title: `${cat} · ${senti} VOC 유형 분해 (전체 ${sub.length}건)`, showlegend: false }, config);
+  }
+
+  function escapeHtml(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+  function renderVocDrilldown(rows) {
+    const cat = document.getElementById("voc-breakdown-cat").value;
+    const senti = document.getElementById("voc-breakdown-senti").value;
+    let sub = rows.filter(r => r.cat === cat);
+    if (senti !== "전체") sub = sub.filter(r => r.sentiment === senti);
+    const subcatSel = document.getElementById("voc-dd-subcat");
+    const prevSubcat = subcatSel.value;
+    const subcats = uniq(sub.map(r => r.sub)).sort();
+    subcatSel.innerHTML = `<option value="">전체 소분류</option>` + subcats.map(s => `<option value="${s}">${s}</option>`).join("");
+    subcatSel.value = subcats.includes(prevSubcat) ? prevSubcat : "";
+    let table = sub;
+    if (subcatSel.value) table = table.filter(r => r.sub === subcatSel.value);
+    table = table.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 300);
+    const tableEl = document.getElementById("voc-dd-table");
+    tableEl.innerHTML = "<thead><tr><th>접수일</th><th>채널</th><th>소분류</th><th>감정</th><th>문의내용</th><th>CSAT</th></tr></thead><tbody>"
+      + table.map(r => `<tr><td>${r.date}</td><td>${escapeHtml(r.channel)}</td><td>${escapeHtml(r.sub)}</td><td>${escapeHtml(r.sentiment)}</td><td class="wrap-text">${escapeHtml(r.text)}</td><td>${r.csat ?? ""}</td></tr>`).join("")
+      + "</tbody>";
+  }
+
+  function renderCsat(rows) {
+    const csatVals = rows.map(r => r.csat);
+    const npsVals = rows.map(r => r.nps);
+    const promoter = npsVals.filter(v => v >= 9).length / npsVals.length * 100;
+    const detractor = npsVals.filter(v => v <= 6).length / npsVals.length * 100;
+    const npsScore = promoter - detractor;
+    const lowRatio = csatVals.filter(v => v <= 2).length / csatVals.length * 100;
+    const npsClass = npsScore < 0 ? "neg" : "";
+    document.getElementById("scorecards").innerHTML = `
+      <div class="card"><div class="label">CSAT 평균</div><div class="value">${fmt(mean(csatVals), 2)} / 5</div><div class="desc">n=${rows.length}건</div></div>
+      <div class="card"><div class="label">NPS 평균</div><div class="value">${fmt(mean(npsVals), 2)} / 10</div><div class="desc">참고용(평균 지표)</div></div>
+      <div class="card"><div class="label">NPS 점수</div><div class="value ${npsClass}">${fmt(npsScore)}</div><div class="desc">추천자%-비판자%(정식 계산)</div></div>
+      <div class="card"><div class="label">저만족 비율</div><div class="value neg">${fmt(lowRatio)}%</div><div class="desc">csat 1~2점 비중</div></div>
+    `;
+
+    const byCat = groupBy(rows, r => r.category);
+    const cats = [...byCat.keys()].sort((a, b) => mean(byCat.get(a).map(r => r.csat)) - mean(byCat.get(b).map(r => r.csat)));
+    const overall = mean(csatVals);
+    Plotly.newPlot("chart-csat-category", [
+      { x: cats, y: cats.map(c => Number(fmt(mean(byCat.get(c).map(r => r.csat)), 2))), type: "bar", marker: { color: BLUE } },
+    ], { ...layoutBase, title: "상담 카테고리별 CSAT 평균", showlegend: false,
+         shapes: [{ type: "line", x0: -0.5, x1: cats.length - 0.5, y0: overall, y1: overall, line: { color: CRITICAL, dash: "dash" } }] }, config);
+
+    Plotly.newPlot("chart-csat-hist", [
+      { x: csatVals, type: "histogram", xbins: { start: 0.5, end: 5.5, size: 1 }, marker: { color: BLUE } },
+    ], { ...layoutBase, title: "CSAT 점수 분포", showlegend: false }, config);
+
+    const byChan = groupBy(rows, r => r.channel);
+    const chansByCsat = [...byChan.keys()].sort((a, b) => mean(byChan.get(a).map(r => r.csat)) - mean(byChan.get(b).map(r => r.csat)));
+    Plotly.newPlot("chart-channel-csat", [
+      { x: chansByCsat, y: chansByCsat.map(c => Number(fmt(mean(byChan.get(c).map(r => r.csat)), 2))), type: "bar", marker: { color: BLUE } },
+    ], { ...layoutBase, title: "채널별 CSAT 평균", showlegend: false }, config);
+
+    const chansByRecontact = [...byChan.keys()].map(c => { const g = byChan.get(c); return { c, v: g.filter(r => r.recontact === "Y").length / g.length * 100 }; }).sort((a, b) => b.v - a.v);
+    Plotly.newPlot("chart-channel-recontact", [
+      { x: chansByRecontact.map(o => o.c), y: chansByRecontact.map(o => Number(fmt(o.v))), type: "bar", marker: { color: ORANGE } },
+    ], { ...layoutBase, title: "채널별 재문의율(%)", showlegend: false }, config);
+  }
+
+  function renderCsatDrilldown(rows) {
+    const catSel = document.getElementById("csat-dd-cat");
+    const prev = catSel.value;
+    const cats = uniq(rows.map(r => r.category)).sort();
+    catSel.innerHTML = `<option value="">전체 카테고리</option>` + cats.map(c => `<option value="${c}">${c}</option>`).join("");
+    catSel.value = cats.includes(prev) ? prev : "";
+    let low = rows.filter(r => r.csat <= 2);
+    if (catSel.value) low = low.filter(r => r.category === catSel.value);
+    low = low.slice().sort((a, b) => b.date.localeCompare(a.date));
+    const tableEl = document.getElementById("csat-dd-table");
+    tableEl.innerHTML = "<thead><tr><th>상담일</th><th>채널</th><th>카테고리</th><th>CSAT</th><th>NPS</th><th>코멘트</th></tr></thead><tbody>"
+      + low.map(r => `<tr><td>${r.date}</td><td>${escapeHtml(r.channel)}</td><td>${escapeHtml(r.category)}</td><td>${r.csat}</td><td>${r.nps}</td><td class="wrap-text">${escapeHtml(r.comment)}</td></tr>`).join("")
+      + "</tbody>";
+  }
+
+  function renderChain(rows) {
+    const byCust = groupBy(rows, r => r.customer_id);
+    const custIds = [...byCust.keys()];
+    const bucketOf = id => { const n = byCust.get(id).filter(r => r.recontact === "Y").length; return n === 0 ? "재문의 없음" : (n === 1 ? "재문의 1회" : "재문의 2회+"); };
+    const churnOf = id => byCust.get(id)[0].churn === "Y";
+    const order = ["재문의 없음", "재문의 1회", "재문의 2회+"];
+    const rates = order.map(b => {
+      const ids = custIds.filter(id => bucketOf(id) === b);
+      return { b, n: ids.length, rate: ids.length ? ids.filter(churnOf).length / ids.length * 100 : 0 };
+    });
+    const overall = custIds.length ? custIds.filter(churnOf).length / custIds.length * 100 : 0;
+    const maxRate = Math.max(...rates.map(r => r.rate));
+    Plotly.newPlot("chart-chain", [{
+      x: rates.map(r => r.b), y: rates.map(r => Number(fmt(r.rate))),
+      type: "bar", marker: { color: rates.map(r => r.rate === maxRate ? CRITICAL : MUTED) },
+      text: rates.map(r => `${fmt(r.rate)}% (n=${r.n})`), textposition: "outside",
+    }], { ...layoutBase, title: "재문의 횟수 구간별 이탈율", showlegend: false,
+         shapes: [{ type: "line", x0: -0.5, x1: 2.5, y0: overall, y1: overall, line: { color: BLUE, dash: "dash" } }] }, config);
+    return { byCust, bucketOf };
+  }
+
+  function renderRecontactMonthly(rows) {
+    const byMonth = groupBy(rows, r => monthOf(r.date));
+    const months = [...byMonth.keys()].sort();
+    Plotly.newPlot("chart-recontact-monthly", [{
+      x: months, y: months.map(m => { const g = byMonth.get(m); return Number(fmt(g.filter(r => r.recontact === "Y").length / g.length * 100)); }),
+      type: "scatter", mode: "lines+markers", line: { color: ORANGE },
+    }], { ...layoutBase, title: "월별 재문의율(%) 추이", showlegend: false }, config);
+  }
+
+  function renderChainDrilldown(rows, chainCtx) {
+    const bucketSel = document.getElementById("chain-dd-bucket").value;
+    const custIds = [...chainCtx.byCust.keys()].filter(id => chainCtx.bucketOf(id) === bucketSel);
+    const tableRows = custIds.map(id => chainCtx.byCust.get(id)[0]);
+    const tableEl = document.getElementById("chain-dd-table");
+    tableEl.innerHTML = "<thead><tr><th>고객ID</th><th>등급</th><th>지역</th><th>이탈여부</th></tr></thead><tbody>"
+      + tableRows.map(r => `<tr><td>${escapeHtml(r.customer_id)}</td><td>${escapeHtml(r.grade)}</td><td>${escapeHtml(r.region)}</td><td>${escapeHtml(r.churn)}</td></tr>`).join("")
+      + "</tbody>";
+  }
+
+  function renderCustomer(cust) {
+    const gradeOrder = ["VIP", "GOLD", "SILVER", "일반", "BRONZE"].filter(g => cust.some(c => c.grade === g));
+    const byGrade = groupBy(cust, c => c.grade);
+    Plotly.newPlot("chart-grade", [{
+      x: gradeOrder, y: gradeOrder.map(g => Number(fmt(byGrade.get(g).filter(c => c.churn === "Y").length / byGrade.get(g).length * 100))),
+      type: "bar", marker: { color: BLUE },
+    }], { ...layoutBase, title: "회원등급별 이탈율(%)", showlegend: false }, config);
+
+    const byRegion = groupBy(cust, c => c.region);
+    const regions = [...byRegion.keys()].sort((a, b) => (byRegion.get(b).filter(c => c.churn === "Y").length / byRegion.get(b).length) - (byRegion.get(a).filter(c => c.churn === "Y").length / byRegion.get(a).length));
+    Plotly.newPlot("chart-region", [{
+      x: regions, y: regions.map(r => Number(fmt(byRegion.get(r).filter(c => c.churn === "Y").length / byRegion.get(r).length * 100))),
+      type: "bar", marker: { color: regions.map(r => byRegion.get(r).length >= 30 ? BLUE : MUTED) },
+      text: regions.map(r => `n=${byRegion.get(r).length}`), textposition: "outside",
+    }], { ...layoutBase, title: "지역별 이탈율(%) — 진한 막대만 표본 30건 이상", showlegend: false }, config);
+
+    const regionKeys = [...byRegion.keys()].filter(r => REGION_COORDS[r]);
+    const churnByRegion = regionKeys.map(r => byRegion.get(r).filter(c => c.churn === "Y").length / byRegion.get(r).length * 100);
+    Plotly.newPlot("chart-region-map", [{
+      type: "scattergeo", lat: regionKeys.map(r => REGION_COORDS[r][0]), lon: regionKeys.map(r => REGION_COORDS[r][1]),
+      text: regionKeys, mode: "markers+text", textposition: "top center",
+      marker: {
+        size: regionKeys.map(r => 8 + byRegion.get(r).length * 0.9), color: churnByRegion,
+        colorscale: SEQ_BLUE, cmin: 0, cmax: Math.max(...churnByRegion), colorbar: { title: "이탈율(%)" },
+        line: { width: 1, color: isDark ? "#1a1a19" : "#fcfcfb" },
+      },
+    }], { ...layoutBase, title: "지역별 고객수(버블 크기) x 이탈율(색상)", showlegend: false,
+         geo: { scope: "asia", lataxis: { range: [32, 40] }, lonaxis: { range: [123, 132] }, showcountries: true, countrycolor: grid, showland: true, landcolor: isDark ? "#14181d" : "#f9f9f7", showocean: true, oceancolor: isDark ? "#0d1a26" : "#eef3f8", resolution: 50, bgcolor: "rgba(0,0,0,0)" } }, config);
+
+    const byCohort = groupBy(cust, c => c.join_date.slice(0, 7));
+    const cohorts = [...byCohort.keys()].sort();
+    Plotly.newPlot("chart-cohort", [{
+      x: cohorts, y: cohorts.map(m => Number(fmt(byCohort.get(m).filter(c => c.churn === "Y").length / byCohort.get(m).length * 100))),
+      type: "scatter", mode: "lines+markers", line: { color: VIOLET },
+    }], { ...layoutBase, title: "가입월 코호트별 이탈율(%)", showlegend: false }, config);
+
+    Plotly.newPlot("chart-age", [{
+      x: cust.map(c => c.age), type: "histogram", xbins: { size: 5 }, marker: { color: AQUA },
+    }], { ...layoutBase, title: "고객 연령 분포", showlegend: false }, config);
+  }
+
+  function renderCustomerDrilldown(cust) {
+    const gradeSel = document.getElementById("cust-dd-grade");
+    const regionSel = document.getElementById("cust-dd-region");
+    if (gradeSel.options.length <= 1) {
+      uniq(cust.map(c => c.grade)).sort().forEach(g => gradeSel.insertAdjacentHTML("beforeend", `<option value="${g}">${g}</option>`));
+      uniq(cust.map(c => c.region)).sort().forEach(r => regionSel.insertAdjacentHTML("beforeend", `<option value="${r}">${r}</option>`));
+    }
+    let rows = cust;
+    if (gradeSel.value) rows = rows.filter(c => c.grade === gradeSel.value);
+    if (regionSel.value) rows = rows.filter(c => c.region === regionSel.value);
+    rows = rows.slice().sort((a, b) => b.join_date.localeCompare(a.join_date)).slice(0, 300);
+    const tableEl = document.getElementById("cust-dd-table");
+    tableEl.innerHTML = "<thead><tr><th>고객ID</th><th>이름</th><th>나이</th><th>성별</th><th>지역</th><th>등급</th><th>가입일</th><th>이탈</th></tr></thead><tbody>"
+      + rows.map(r => `<tr><td>${escapeHtml(r.customer_id)}</td><td>${escapeHtml(r.name)}</td><td>${r.age}</td><td>${escapeHtml(r.gender)}</td><td>${escapeHtml(r.region)}</td><td>${escapeHtml(r.grade)}</td><td>${r.join_date}</td><td>${escapeHtml(r.churn)}</td></tr>`).join("")
+      + "</tbody>";
+  }
+
+  function renderAll() {
+    const vocRows = filteredVoc();
+    const mergedRows = filteredMerged();
+    document.getElementById("fbcount").textContent = `VOC ${vocRows.length}건 · 상담 ${mergedRows.length}건 (${state.dateFrom} ~ ${state.dateTo})`;
+
+    renderVocCategory(vocRows);
+    renderVocMonthly(vocRows);
+    renderVocChannel(vocRows);
+    renderVocSentiment(vocRows);
+    renderVocBreakdown(vocRows);
+    renderVocDrilldown(vocRows);
+
+    renderCsat(mergedRows);
+    renderCsatDrilldown(mergedRows);
+
+    const chainCtx = renderChain(mergedRows);
+    renderRecontactMonthly(mergedRows);
+    renderChainDrilldown(mergedRows, chainCtx);
+
+    renderCustomer(d.cust);
+    renderCustomerDrilldown(d.cust);
+  }
+
+  ["voc-breakdown-cat", "voc-breakdown-senti", "voc-dd-subcat"].forEach(id =>
+    document.getElementById(id).addEventListener("change", () => { renderVocBreakdown(filteredVoc()); renderVocDrilldown(filteredVoc()); }));
+  document.getElementById("csat-dd-cat").addEventListener("change", () => renderCsatDrilldown(filteredMerged()));
+  document.getElementById("chain-dd-bucket").addEventListener("change", () => renderChainDrilldown(filteredMerged(), renderChain(filteredMerged())));
+  document.getElementById("cust-dd-grade").addEventListener("change", () => renderCustomerDrilldown(d.cust));
+  document.getElementById("cust-dd-region").addEventListener("change", () => renderCustomerDrilldown(d.cust));
+
+  renderAll();
 });
 </script>
 </body>
