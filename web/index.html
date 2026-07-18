@@ -511,7 +511,7 @@ fetch("data.json").then(r => r.json()).then(d => {
       hovertemplate: "<b>%{customdata.0}</b><br>고객수: %{customdata.1}명<br>이탈 고객수: %{customdata.2}명<br>이탈율: %{customdata.3}%<extra></extra>",
       marker: {
         // 면적 비례(sqrt) 크기 + 실제 이탈율 범위(cmin~cmax, 0 고정 아님)로 색상 대비를 살린다.
-        size: regionCounts.map(c => 22 + Math.sqrt(c) * 6), sizemode: "diameter",
+        size: regionCounts.map(c => 9 + Math.sqrt(c) * 3), sizemode: "diameter",
         color: churnByRegion, colorscale: SEQ_BLUE, cmin: Math.min(...churnByRegion), cmax: Math.max(...churnByRegion),
         colorbar: { title: "이탈율(%)" }, opacity: 0.85,
         line: { width: 1.5, color: isDark ? "#ffffff" : "#0b0b0b" },

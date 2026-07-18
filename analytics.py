@@ -257,7 +257,7 @@ def fig_region_map(cust):
     rates = [float(churn[r]) for r in regions]
     # 실제 이탈율 범위로 색상 스케일을 당겨써야 미세한 차이가 눈에 들어온다(0%~최댓값으로 두면 저채도 구간만 쓰임).
     cmin, cmax = min(rates), max(rates)
-    sizes = [22 + (counts[r] ** 0.5) * 6 for r in regions]  # 면적 비례(sqrt) + 최소 가독 크기 확보
+    sizes = [9 + (counts[r] ** 0.5) * 3 for r in regions]  # 면적 비례(sqrt) + 최소 가독 크기 확보
     # customdata에 지역명까지 담아둔다 — Streamlit의 클릭 선택 이벤트 스키마는 "text"를 보장하지 않고
     # customdata만 항상 포함하므로, 클릭 핸들러에서 필요한 값 전부를 여기서 꺼낼 수 있게 한다.
     customdata = [[r, int(counts[r]), int(churned[r]), round(churn[r], 1)] for r in regions]
