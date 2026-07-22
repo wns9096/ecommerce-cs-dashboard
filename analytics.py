@@ -5,7 +5,9 @@
 """
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
 import streamlit as st
+from scipy import stats
 
 RAW = "raw"
 
@@ -48,8 +50,16 @@ def load_data():
 
     usage = pd.read_csv(f"{RAW}/ecommerce_usage_history.csv", encoding="utf-8-sig")
 
+    agents = pd.read_csv(f"{RAW}/ecommerce_agents.csv", encoding="utf-8-sig")
+    per_agent = (
+        cons.merge(sat[["consult_id", "csat"]], on="consult_id", how="left")
+        .groupby("agent_id")
+        .agg(csat_avg=("csat", "mean"), recontact_rate=("is_recontact", lambda s: (s == "Y").mean() * 100))
+    )
+    agents = agents.merge(per_agent, on="agent_id", how="left")
+
     merged = sat.merge(cons, on=["consult_id", "customer_id"], how="left").merge(cust, on="customer_id", how="left")
-    return {"voc": voc, "cust": cust, "cons": cons, "sat": sat, "usage": usage, "merged": merged}
+    return {"voc": voc, "cust": cust, "cons": cons, "sat": sat, "usage": usage, "merged": merged, "agents": agents}
 
 
 def _layout(fig, title, show_legend=True):
@@ -349,6 +359,94 @@ def fig_tenure_usage_scatter(cust, usage, ref_date="2025-12-31"):
     fig.update_xaxes(title="가입기간(개월)")
     fig.update_yaxes(title="월평균 구매금액(원)")
     return _layout(fig, "가입기간 x 이용량(월평균 구매금액) 산점도")
+
+
+# ---------------- 상담원 관점 (직원만족도·eNPS) — 3주차 Day2/3 ----------------
+
+def filter_agents(agents, team):
+    if team == "전체":
+        return agents
+    return agents[agents["team"] == team]
+
+
+def _enps(df):
+    if len(df) == 0:
+        return 0.0
+    promoter = (df["agent_satisfaction"] >= 9).mean() * 100
+    detractor = (df["agent_satisfaction"] <= 6).mean() * 100
+    return round(promoter - detractor, 1)
+
+
+def fig_enps_gauge(df):
+    value = _enps(df)
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=value,
+        title={"text": f"eNPS (n={len(df)})"},
+        gauge={
+            "axis": {"range": [-100, 100]},
+            "bar": {"color": "#1c2733"},
+            "steps": [{"range": [-100, 0], "color": "#f6c6c6"}, {"range": [0, 100], "color": "#c8e6c9"}],
+        },
+    ))
+    fig.update_layout(height=280, paper_bgcolor="rgba(0,0,0,0)", margin=dict(t=48, l=10, r=10, b=10))
+    return fig
+
+
+def fig_burnout_csat_scatter(df):
+    """번아웃(초과근무) x CSAT 산점도 + 추세선. 표본이 작으면(<10) 상관계수를
+    신뢰하기 어렵다는 경고를 텍스트에 그대로 표시한다(교안 Day3 "표본이 6명으로
+    줄면 상관계수를 믿기 어렵다" 원칙)."""
+    df = df.dropna(subset=["overtime_hours_avg", "csat_avg"])
+    small_sample = len(df) < 10
+    if len(df) >= 3:
+        r, p = stats.pearsonr(df["overtime_hours_avg"], df["csat_avg"])
+    else:
+        r, p = float("nan"), float("nan")
+
+    if small_sample or len(df) < 3:
+        fig = px.scatter(
+            df, x="overtime_hours_avg", y="csat_avg",
+            hover_data=["agent_id"],
+            labels={"overtime_hours_avg": "월 평균 초과근무시간", "csat_avg": "상담원별 CSAT 평균"},
+        )
+        note = f"표본 n={len(df)}명 — 너무 적어 상관계수는 참고용" if len(df) >= 3 else f"표본 n={len(df)}명 — 상관계수 계산 불가"
+    else:
+        fig = px.scatter(
+            df, x="overtime_hours_avg", y="csat_avg", trendline="ols",
+            hover_data=["agent_id"],
+            labels={"overtime_hours_avg": "월 평균 초과근무시간", "csat_avg": "상담원별 CSAT 평균"},
+        )
+        fig.update_traces(line=dict(color="#eb6834", width=2), selector=dict(mode="lines"))
+        sig = "p<0.05, 유의함" if p < 0.05 else "p≥0.05, 유의하지 않음"
+        note = f"r = {r:.2f} ({sig})"
+
+    fig.update_traces(marker=dict(size=10, color="#2a78d6", line=dict(width=1, color="#0d366b")), selector=dict(mode="markers"))
+    fig.add_annotation(xref="paper", yref="paper", x=0.98, y=0.98, showarrow=False, text=note,
+                        font=dict(size=13, color="#d03b3b" if small_sample else "#1c2733"))
+    return _layout(fig, "번아웃(초과근무) x CSAT 산점도 + 추세선", show_legend=False)
+
+
+def fig_training_compare(df):
+    g = df.groupby("training_completed_yn").agg(csat_avg=("csat_avg", "mean"), recontact_rate=("recontact_rate", "mean"))
+    labels = {"Y": "이수", "N": "미이수"}
+    colors = {"Y": "#2a78d6", "N": "#898781"}
+    order = [k for k in ["Y", "N"] if k in g.index]
+
+    from plotly.subplots import make_subplots
+    fig = make_subplots(rows=1, cols=2, subplot_titles=("CSAT 평균", "재문의율(%)"))
+    fig.add_bar(x=[labels[k] for k in order], y=[round(g.loc[k, "csat_avg"], 2) for k in order],
+                marker_color=[colors[k] for k in order],
+                text=[f"{g.loc[k, 'csat_avg']:.2f}" for k in order], textposition="outside",
+                row=1, col=1, showlegend=False)
+    fig.add_bar(x=[labels[k] for k in order], y=[round(g.loc[k, "recontact_rate"], 1) for k in order],
+                marker_color=[colors[k] for k in order],
+                text=[f"{g.loc[k, 'recontact_rate']:.1f}%" for k in order], textposition="outside",
+                row=1, col=2, showlegend=False)
+    fig.update_layout(title="교육 이수 여부(Y/N)별 CSAT·재문의율 비교",
+                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", height=360,
+                       margin=dict(t=64, l=10, r=10, b=10))
+    return fig
 
 
 def drilldown_customers(cust, grades, regions):

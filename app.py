@@ -41,7 +41,7 @@ voc_categories = st.sidebar.multiselect("VOC 대분류 (VOC 현황 탭)", sorted
 voc_channels = st.sidebar.multiselect("VOC 채널 (VOC 현황 탭)", sorted(voc["채널"].unique()))
 cons_channels = st.sidebar.multiselect("상담 채널 (만족도·재문의 탭)", sorted(cons["channel"].unique()))
 
-tab1, tab2, tab3, tab4 = st.tabs(["VOC 현황", "만족도", "재문의·이탈", "고객 현황"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["VOC 현황", "만족도", "재문의·이탈", "고객 현황", "상담원 관점"])
 
 # ---------------- Tab 1: VOC 현황 ----------------
 with tab1:
@@ -178,3 +178,29 @@ with tab4:
     st.markdown("**해석**: 회원등급별 이탈율 차이는 4.6%p로 작고 VIP가 BRONZE보다 높게 나오는 등 상식과 다른 방향. 지역은 제주(n=30)를 제외한 전 지역이 표본 30건 미만이라 참고용에 그친다.")
     st.markdown("**시사점**: 등급·지역을 위험 신호로 사용하기에는 근거가 약하다. 규칙 기반 위험 스코어링도 신호 간 방향이 엇갈려(반복재문의가 반대 방향) 합산 점수가 작동하지 않음을 확인했다 — 처방적 제안(Top3)은 데이터 한계로 보류한다.")
     st.caption("신뢰도: 낮음 (가설 — 표본·데이터 생성 한계)")
+
+# ---------------- Tab 5: 상담원 관점 (3주차) ----------------
+with tab5:
+    st.subheader("상담원 관점: 직원만족도와 고객 경험")
+
+    agents = data["agents"]
+    team_sel = st.selectbox("팀 필터", ["전체", "1팀", "2팀", "3팀"], key="agent_team_filter")
+    fdf = az.filter_agents(agents, team_sel)
+    st.caption(f"필터 적용 후 {len(fdf)}명 (전체 {len(agents)}명)")
+    if team_sel != "전체" and len(fdf) < 10:
+        st.warning(f"'{team_sel}'은 표본이 {len(fdf)}명뿐입니다 — 아래 상관계수·비율은 참고용으로만 보세요.")
+
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        st.plotly_chart(az.fig_enps_gauge(fdf), use_container_width=True)
+    with c2:
+        st.plotly_chart(az.fig_burnout_csat_scatter(fdf), use_container_width=True)
+
+    st.plotly_chart(az.fig_training_compare(fdf), use_container_width=True)
+
+    st.markdown(
+        "**해석**: 직원만족도를 NPS 계산법 그대로 적용하면 eNPS가 크게 마이너스로 나오는 "
+        "'평균의 함정'은 재현되지만(전체 -60.0), 번아웃-CSAT·만족도-재문의율 상관관계는 "
+        "이 데이터에서 방향만 같고 통계적으로 유의하지 않다(r=-0.32, p=0.17 등)."
+    )
+    st.caption("신뢰도: 낮음 (가설) — 자세한 근거는 위키 [[이커머스_직원만족도_고객경험_상관관계_유의성부족]] 참고")
