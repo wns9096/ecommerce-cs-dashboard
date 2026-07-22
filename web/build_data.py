@@ -117,6 +117,42 @@ def _partial_corr(x, y, z):
     return round(float(r_p), 3), round(float(p_p), 4)
 
 
+def _linreg_points(sub, x_col, y_col):
+    """산점도용 원자료 + OLS 추세선 계수 + r/p. n<3이면 추세선 없이 점만."""
+    n = len(sub)
+    r = p = slope = intercept = None
+    if n >= 3:
+        r, p = stats.pearsonr(sub[x_col], sub[y_col])
+        slope, intercept = np.polyfit(sub[x_col], sub[y_col], 1)
+        r, p, slope, intercept = round(float(r), 3), round(float(p), 4), float(slope), float(intercept)
+    points = [{"agent_id": row["agent_id"], "x": float(row[x_col]), "y": float(row[y_col])} for _, row in sub.iterrows()]
+    return {"n": n, "r": r, "p": p, "slope": slope, "intercept": intercept, "points": points}
+
+
+def _corr_table(df):
+    """근속기간과 주요 지표의 상관관계 요약표(리포트의 텍스트 표를 데이터로도 제공)."""
+    sub = df.dropna(subset=["tenure_months"])
+    rows = []
+    for col, label in [
+        ("agent_satisfaction", "직원만족도"), ("overtime_hours_avg", "초과근무시간"),
+        ("csat_avg", "상담원별 CSAT"), ("recontact_rate", "상담원별 재문의율"),
+    ]:
+        d = sub.dropna(subset=[col])
+        if len(d) >= 3:
+            r, p = stats.pearsonr(d["tenure_months"], d[col])
+            rows.append({"지표": label, "r": round(float(r), 3), "p": round(float(p), 4),
+                         "유의성": "유의함" if p < 0.05 else "유의하지 않음", "n": len(d)})
+        else:
+            rows.append({"지표": label, "r": None, "p": None, "유의성": "표본 부족", "n": len(d)})
+    d2 = sub.dropna(subset=["training_completed_yn"])
+    if len(d2) >= 3:
+        y = (d2["training_completed_yn"] == "Y").astype(int)
+        r, p = stats.pointbiserialr(y, d2["tenure_months"])
+        rows.append({"지표": "교육이수여부(Y=1)", "r": round(float(r), 3), "p": round(float(p), 4),
+                     "유의성": "유의함" if p < 0.05 else "유의하지 않음", "n": len(d2)})
+    return rows
+
+
 def _team_block(df):
     scatter_df = df.dropna(subset=["overtime_hours_avg", "csat_avg"])
     n = len(scatter_df)
@@ -145,10 +181,34 @@ def _team_block(df):
         for _, row in scatter_df.iterrows()
     ]
 
+    # 근속기간 관련 신규 시각화용 데이터
+    tenure_satisfaction = _linreg_points(df.dropna(subset=["tenure_months", "agent_satisfaction"]), "tenure_months", "agent_satisfaction")
+    tenure_overtime = _linreg_points(df.dropna(subset=["tenure_months", "overtime_hours_avg"]), "tenure_months", "overtime_hours_avg")
+    training_tenure_points = [
+        {"agent_id": row["agent_id"], "tenure": float(row["tenure_months"]), "training": row["training_completed_yn"]}
+        for _, row in df.dropna(subset=["tenure_months", "training_completed_yn"]).iterrows()
+    ]
+
+    confound = []
+    sat_recontact_df = df.dropna(subset=["agent_satisfaction", "recontact_rate", "tenure_months"])
+    for x_col, y_col, label in [
+        ("overtime_hours_avg", "csat_avg", "번아웃 ↔ CSAT"),
+        ("agent_satisfaction", "recontact_rate", "만족도 ↔ 재문의율"),
+    ]:
+        sub2 = df.dropna(subset=[x_col, y_col, "tenure_months"])
+        if len(sub2) < 4:
+            continue
+        raw_r, _ = stats.pearsonr(sub2[x_col], sub2[y_col])
+        part_r, _ = _partial_corr(sub2[x_col], sub2[y_col], sub2["tenure_months"])
+        confound.append({"label": label, "raw_r": round(float(raw_r), 2), "partial_r": round(float(part_r), 2)})
+
     return {
         "n": len(df), "enps": _enps(df), "r": r, "p": p, "slope": slope, "intercept": intercept,
         "r_partial": r_partial, "p_partial": p_partial,
         "points": points, "training": training,
+        "tenure_satisfaction": tenure_satisfaction, "tenure_overtime": tenure_overtime,
+        "training_tenure_points": training_tenure_points, "confound": confound,
+        "corr_table": _corr_table(df),
     }
 
 

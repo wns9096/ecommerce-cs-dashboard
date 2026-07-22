@@ -482,6 +482,116 @@ def fig_training_compare(df):
     return fig
 
 
+# ---------------- 근속기간(재직기간) 교란변수 분석 — 2026-07-22 추가 ----------------
+
+def tenure_corr_table(df):
+    """근속기간과 주요 지표의 상관관계 요약표. 리포트 텍스트로만 있던 표를
+    실제 데이터 표(st.dataframe)로 만든다."""
+    sub = df.dropna(subset=["tenure_months"])
+    rows = []
+    for col, label in [
+        ("agent_satisfaction", "직원만족도"), ("overtime_hours_avg", "초과근무시간"),
+        ("csat_avg", "상담원별 CSAT"), ("recontact_rate", "상담원별 재문의율"),
+    ]:
+        d = sub.dropna(subset=[col])
+        if len(d) >= 3:
+            r, p = stats.pearsonr(d["tenure_months"], d[col])
+            rows.append({"지표": label, "r": round(float(r), 3), "p": round(float(p), 4),
+                         "유의성(α=.05)": "유의함" if p < 0.05 else "유의하지 않음", "n": len(d)})
+        else:
+            rows.append({"지표": label, "r": None, "p": None, "유의성(α=.05)": "표본 부족", "n": len(d)})
+
+    d2 = sub.dropna(subset=["training_completed_yn"])
+    if len(d2) >= 3:
+        y = (d2["training_completed_yn"] == "Y").astype(int)
+        r, p = stats.pointbiserialr(y, d2["tenure_months"])
+        rows.append({"지표": "교육이수여부(Y=1)", "r": round(float(r), 3), "p": round(float(p), 4),
+                     "유의성(α=.05)": "유의함" if p < 0.05 else "유의하지 않음", "n": len(d2)})
+    return pd.DataFrame(rows)
+
+
+def fig_tenure_satisfaction(df):
+    sub = df.dropna(subset=["tenure_months", "agent_satisfaction"])
+    fig = px.scatter(
+        sub, x="tenure_months", y="agent_satisfaction",
+        trendline="ols" if len(sub) >= 3 else None, hover_data=["agent_id"],
+        labels={"tenure_months": "근속기간(개월)", "agent_satisfaction": "직원만족도(0~10)"},
+    )
+    fig.update_traces(marker=dict(size=10, color="#2a78d6", line=dict(width=1, color="#0d366b")), selector=dict(mode="markers"))
+    fig.update_traces(line=dict(color="#eb6834", width=2), selector=dict(mode="lines"))
+    note = "표본 부족"
+    if len(sub) >= 3:
+        r, p = stats.pearsonr(sub["tenure_months"], sub["agent_satisfaction"])
+        note = f"r = {r:.2f} ({'p<0.05, 유의함' if p < 0.05 else 'p≥0.05, 유의하지 않음'})"
+    fig.add_annotation(xref="paper", yref="paper", x=0.02, y=0.98, showarrow=False, text=note,
+                        font=dict(size=13, color="#1c2733"), align="left")
+    return _layout(fig, "근속기간 x 직원만족도", show_legend=False)
+
+
+def fig_tenure_overtime(df):
+    sub = df.dropna(subset=["tenure_months", "overtime_hours_avg"])
+    fig = px.scatter(
+        sub, x="tenure_months", y="overtime_hours_avg",
+        trendline="ols" if len(sub) >= 3 else None, hover_data=["agent_id"],
+        labels={"tenure_months": "근속기간(개월)", "overtime_hours_avg": "월 평균 초과근무시간"},
+    )
+    fig.update_traces(marker=dict(size=10, color="#eb6834", line=dict(width=1, color="#8a3f14")), selector=dict(mode="markers"))
+    fig.update_traces(line=dict(color="#4a3aa7", width=2), selector=dict(mode="lines"))
+    note = "표본 부족"
+    if len(sub) >= 3:
+        r, p = stats.pearsonr(sub["tenure_months"], sub["overtime_hours_avg"])
+        note = f"r = {r:.2f} ({'p<0.05, 유의함' if p < 0.05 else 'p≥0.05, 유의하지 않음'})"
+    fig.add_annotation(xref="paper", yref="paper", x=0.98, y=0.98, showarrow=False, text=note,
+                        font=dict(size=13, color="#1c2733"), align="right")
+    return _layout(fig, "근속기간 x 초과근무시간", show_legend=False)
+
+
+def fig_tenure_by_training(df):
+    """교육 이수(Y) vs 미이수(N) 그룹의 근속기간 분포 — 두 그룹이 근속기간으로
+    거의 완벽히 갈린다는 것을 박스플롯 + 개별 점으로 직접 보여준다."""
+    sub = df.dropna(subset=["tenure_months", "training_completed_yn"])
+    labels = {"Y": "이수", "N": "미이수"}
+    colors = {"Y": "#2a78d6", "N": "#898781"}
+    fig = go.Figure()
+    for k in ["Y", "N"]:
+        g = sub[sub["training_completed_yn"] == k]
+        if len(g) == 0:
+            continue
+        fig.add_trace(go.Box(
+            y=g["tenure_months"], name=labels[k], marker_color=colors[k],
+            boxpoints="all", jitter=0.4, pointpos=0,
+            hovertext=g["agent_id"], hoverinfo="y+text",
+        ))
+    fig.update_layout(yaxis_title="근속기간(개월)")
+    return _layout(fig, "교육 이수 여부별 근속기간 분포 (점 하나 = 상담원 1명)", show_legend=False)
+
+
+def fig_confound_comparison(df):
+    """원래 상관계수 vs 근속기간을 통제한 편상관계수를 나란히 비교 — '착시가
+    사라진다'는 것을 표가 아니라 막대그래프로 직접 보여준다."""
+    pairs = [
+        ("overtime_hours_avg", "csat_avg", "번아웃 ↔ CSAT"),
+        ("agent_satisfaction", "recontact_rate", "만족도 ↔ 재문의율"),
+    ]
+    labels, raw_r, partial_r = [], [], []
+    for x_col, y_col, label in pairs:
+        sub = df.dropna(subset=[x_col, y_col, "tenure_months"])
+        if len(sub) < 4:
+            continue
+        r, _ = stats.pearsonr(sub[x_col], sub[y_col])
+        r_p, _ = _partial_corr(sub[x_col], sub[y_col], sub["tenure_months"])
+        labels.append(label)
+        raw_r.append(round(float(r), 2))
+        partial_r.append(round(float(r_p), 2))
+
+    fig = go.Figure()
+    fig.add_bar(x=labels, y=raw_r, name="원래 r", marker_color="#d03b3b")
+    fig.add_bar(x=labels, y=partial_r, name="근속기간 통제 후 r", marker_color="#898781")
+    fig.update_layout(barmode="group", yaxis_title="상관계수 r", yaxis=dict(range=[-1, 1]))
+    fig.add_hline(y=0, line_color="#607080", line_width=1)
+    return _layout(fig, "근속기간 통제 전후 상관계수 비교", show_legend=True)
+
+
 def drilldown_customers(cust, grades, regions):
     df = cust
     if grades:

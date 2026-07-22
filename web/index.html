@@ -246,7 +246,26 @@
     </div>
 
     <p class="note"><b>해석</b>: 직원만족도를 NPS 계산법 그대로 적용하면 eNPS가 크게 마이너스로 나오는 '평균의 함정'은 재현되지만(전체 -60.0), 번아웃-CSAT 상관관계는 이 데이터 전체 기준으로는 방향만 같고 통계적으로 유의하지 않다(r=-0.32, p=0.17).</p>
-    <p class="note"><b>핵심 발견(근속기간 교란변수)</b>: 근속기간이 만족도(r=0.86)·초과근무(r=-0.81)·교육이수(r=0.79)와 모두 매우 유의하게 연결돼 있다(위 산점도 점 색상 참고 — 진할수록 신입). 근속기간을 통제하면 번아웃-CSAT 상관은 -0.32→-0.13로 거의 사라진다 — '번아웃 관리'보다 <b>'신입 온보딩 기간'</b> 문제일 가능성이 높다.</p>
+    <p class="caption">신뢰도: 낮음 (가설) — 위 두 관계 자체의 confidence</p>
+
+    <hr />
+    <h3>근속기간(재직기간) 교란변수 분석</h3>
+    <p class="note">근속기간이 만족도·초과근무·교육이수와 모두 매우 유의하게 연결돼 있다는 것을 표와 그래프로 직접 확인한다.</p>
+
+    <div class="dd-table-wrap" style="max-height:none;">
+      <table class="dd-table" id="agent-corr-table"></table>
+    </div>
+
+    <div class="row2">
+      <div id="chart-tenure-satisfaction" class="chart"></div>
+      <div id="chart-tenure-overtime" class="chart"></div>
+    </div>
+    <div class="row2">
+      <div id="chart-tenure-training-box" class="chart"></div>
+      <div id="chart-confound-compare" class="chart"></div>
+    </div>
+
+    <p class="note"><b>핵심 발견</b>: 근속기간이 만족도(r=0.86)·초과근무(r=-0.81)·교육이수(r=0.79)와 모두 p<0.0001로 강하게 연결돼 있다(위 표·산점도). 교육이수 여부별 근속기간 박스플롯을 보면 두 그룹이 근속기간으로 거의 완벽히 갈리는 것을 점 하나하나로 확인할 수 있다. 근속기간을 통제하면 번아웃-CSAT 상관은 -0.32→-0.13, 만족도-재문의율은 -0.29→+0.15(부호 역전)로 오른쪽 막대그래프처럼 거의 사라진다 — '번아웃 관리'보다 <b>'신입 온보딩 기간'</b> 문제일 가능성이 높다.</p>
     <p class="caption">신뢰도: 중간 (근속기간 교란변수 확인 자체는 높음, 고객지표로의 연결은 여전히 낮음) — 자세한 근거는 위키 이커머스_직원만족도_고객경험_상관관계_유의성부족 참고</p>
   </div>
 
@@ -726,6 +745,65 @@ fetch("data.json").then(r => r.json()).then(d => {
       x: labels, y: recontactVals, type: "bar", marker: { color: colors },
       text: recontactVals.map(v => `${v.toFixed(1)}%`), textposition: "outside",
     }], { ...baseLayout(), title: "교육 이수 여부별 재문의율(%)", showlegend: false }, config);
+
+    renderTenureAnalysis(block);
+  }
+
+  function fmtP(p) { return p === null ? "N/A" : (p < 0.0001 ? "<0.0001" : p.toFixed(4)); }
+
+  function renderTenureAnalysis(block) {
+    const tableEl = document.getElementById("agent-corr-table");
+    tableEl.innerHTML = "<thead><tr><th>지표</th><th>r</th><th>p</th><th>유의성(α=.05)</th><th>n</th></tr></thead><tbody>"
+      + block.corr_table.map(row => `<tr><td>${escapeHtml(row["지표"])}</td><td>${row.r ?? "N/A"}</td><td>${fmtP(row.p)}</td><td>${escapeHtml(row["유의성"])}</td><td>${row.n}</td></tr>`).join("")
+      + "</tbody>";
+
+    function scatterWithTrend(divId, blockData, xTitle, yTitle, title, markerColor, lineColor) {
+      const traces = [{
+        x: blockData.points.map(pt => pt.x), y: blockData.points.map(pt => pt.y), mode: "markers", type: "scatter",
+        marker: { size: 10, color: markerColor, line: { width: 1, color: "#0d366b" } },
+        text: blockData.points.map(pt => pt.agent_id), hovertemplate: `%{text}<br>${xTitle}: %{x}<br>${yTitle}: %{y}<extra></extra>`,
+        showlegend: false,
+      }];
+      let note = `표본 n=${blockData.n}명 — 상관계수 계산 불가`;
+      if (blockData.r !== null) {
+        const xs = blockData.points.map(pt => pt.x);
+        const xMin = Math.min(...xs), xMax = Math.max(...xs);
+        traces.push({
+          x: [xMin, xMax], y: [xMin, xMax].map(x => blockData.slope * x + blockData.intercept),
+          mode: "lines", type: "scatter", line: { color: lineColor, width: 2 }, showlegend: false,
+        });
+        const sig = blockData.p < 0.05 ? "p<0.05, 유의함" : "p≥0.05, 유의하지 않음";
+        note = `r = ${blockData.r.toFixed(2)} (${sig})`;
+      }
+      Plotly.newPlot(divId, traces, {
+        ...baseLayout(), title, showlegend: false,
+        xaxis: { title: xTitle, gridcolor: grid }, yaxis: { title: yTitle, gridcolor: grid },
+        annotations: [{ xref: "paper", yref: "paper", x: 0.02, y: 0.98, showarrow: false, text: note, align: "left", font: { size: 13, color: fg } }],
+      }, config);
+    }
+
+    scatterWithTrend("chart-tenure-satisfaction", block.tenure_satisfaction, "근속기간(개월)", "직원만족도(0~10)", "근속기간 x 직원만족도", BLUE, ORANGE);
+    scatterWithTrend("chart-tenure-overtime", block.tenure_overtime, "근속기간(개월)", "월 평균 초과근무시간", "근속기간 x 초과근무시간", ORANGE, VIOLET);
+
+    const byGroup = { Y: [], N: [] };
+    block.training_tenure_points.forEach(pt => { if (byGroup[pt.training]) byGroup[pt.training].push(pt); });
+    const boxTraces = [];
+    if (byGroup.Y.length) boxTraces.push({ y: byGroup.Y.map(p => p.tenure), name: "이수", type: "box", marker: { color: BLUE }, boxpoints: "all", jitter: 0.4, pointpos: 0, text: byGroup.Y.map(p => p.agent_id) });
+    if (byGroup.N.length) boxTraces.push({ y: byGroup.N.map(p => p.tenure), name: "미이수", type: "box", marker: { color: MUTED }, boxpoints: "all", jitter: 0.4, pointpos: 0, text: byGroup.N.map(p => p.agent_id) });
+    Plotly.newPlot("chart-tenure-training-box", boxTraces, {
+      ...baseLayout(), title: "교육 이수 여부별 근속기간 분포 (점 하나 = 상담원 1명)", showlegend: false,
+      yaxis: { title: "근속기간(개월)", gridcolor: grid },
+    }, config);
+
+    const confLabels = block.confound.map(c => c.label);
+    Plotly.newPlot("chart-confound-compare", [
+      { x: confLabels, y: block.confound.map(c => c.raw_r), name: "원래 r", type: "bar", marker: { color: CRITICAL } },
+      { x: confLabels, y: block.confound.map(c => c.partial_r), name: "근속기간 통제 후 r", type: "bar", marker: { color: MUTED } },
+    ], {
+      ...baseLayout(), title: "근속기간 통제 전후 상관계수 비교", barmode: "group",
+      yaxis: { title: "상관계수 r", range: [-1, 1], gridcolor: grid },
+      shapes: [{ type: "line", x0: -0.5, x1: confLabels.length - 0.5, y0: 0, y1: 0, line: { color: "#607080", width: 1 } }],
+    }, config);
   }
 
   document.getElementById("agent-team-filter").addEventListener("change", e => renderAgents(e.target.value));

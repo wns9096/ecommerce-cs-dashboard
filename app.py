@@ -210,10 +210,36 @@ with dash_tab:
             "'평균의 함정'은 재현되지만(전체 -60.0), 번아웃-CSAT·만족도-재문의율 상관관계는 "
             "이 데이터에서 방향만 같고 통계적으로 유의하지 않다(r=-0.32, p=0.17 등)."
         )
+        st.caption("신뢰도: 낮음 (가설) — 위 두 관계 자체의 confidence")
+
+        st.markdown("---")
+        st.subheader("근속기간(재직기간) 교란변수 분석")
         st.markdown(
-            "**핵심 발견(근속기간 교란변수)**: 근속기간이 만족도(r=0.86)·초과근무(r=-0.81)·교육이수(r=0.79)와 "
-            "모두 매우 유의하게 연결돼 있다(위 산점도 색상 참고). 근속기간을 통제하면 번아웃-CSAT 상관은 "
-            "-0.32→-0.13로 거의 사라진다 — '번아웃 관리'보다 **'신입 온보딩 기간'** 문제일 가능성이 높다."
+            "근속기간이 만족도·초과근무·교육이수와 모두 매우 유의하게 연결돼 있다는 것을 "
+            "**표와 그래프로 직접** 확인한다 — 리포트 텍스트로만 서술했던 근거를 여기서 재현한다."
+        )
+
+        corr_table = az.tenure_corr_table(fdf5)
+        st.dataframe(corr_table, use_container_width=True, hide_index=True)
+
+        c3, c4 = st.columns(2)
+        with c3:
+            st.plotly_chart(az.fig_tenure_satisfaction(fdf5), use_container_width=True)
+        with c4:
+            st.plotly_chart(az.fig_tenure_overtime(fdf5), use_container_width=True)
+
+        c5, c6 = st.columns(2)
+        with c5:
+            st.plotly_chart(az.fig_tenure_by_training(fdf5), use_container_width=True)
+        with c6:
+            st.plotly_chart(az.fig_confound_comparison(fdf5), use_container_width=True)
+
+        st.markdown(
+            "**핵심 발견**: 근속기간이 만족도(r=0.86)·초과근무(r=-0.81)·교육이수(r=0.79)와 모두 p<0.0001로 "
+            "강하게 연결돼 있다(위 표·산점도). 교육이수 여부별 근속기간 박스플롯을 보면 두 그룹이 근속기간으로 "
+            "거의 완벽히 갈리는 것을 점 하나하나로 확인할 수 있다. 근속기간을 통제하면 번아웃-CSAT 상관은 "
+            "-0.32→-0.13, 만족도-재문의율은 -0.29→+0.15(부호 역전)로 오른쪽 막대그래프처럼 거의 사라진다 — "
+            "'번아웃 관리'보다 **'신입 온보딩 기간'** 문제일 가능성이 높다."
         )
         st.caption("신뢰도: 중간 (근속기간 교란변수 확인 자체는 높음, 고객지표로의 연결은 여전히 낮음) — 자세한 근거는 위키 이커머스_직원만족도_고객경험_상관관계_유의성부족 참고")
 
