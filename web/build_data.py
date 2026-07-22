@@ -135,7 +135,7 @@ def _corr_table(df):
     rows = []
     for col, label in [
         ("agent_satisfaction", "직원만족도"), ("overtime_hours_avg", "초과근무시간"),
-        ("csat_avg", "상담원별 CSAT"), ("recontact_rate", "상담원별 재문의율"),
+        ("qa_score", "QA(품질)점수"), ("csat_avg", "상담원별 CSAT"), ("recontact_rate", "상담원별 재문의율"),
     ]:
         d = sub.dropna(subset=[col])
         if len(d) >= 3:
@@ -144,12 +144,13 @@ def _corr_table(df):
                          "유의성": "유의함" if p < 0.05 else "유의하지 않음", "n": len(d)})
         else:
             rows.append({"지표": label, "r": None, "p": None, "유의성": "표본 부족", "n": len(d)})
-    d2 = sub.dropna(subset=["training_completed_yn"])
-    if len(d2) >= 3:
-        y = (d2["training_completed_yn"] == "Y").astype(int)
-        r, p = stats.pointbiserialr(y, d2["tenure_months"])
-        rows.append({"지표": "교육이수여부(Y=1)", "r": round(float(r), 3), "p": round(float(p), 4),
-                     "유의성": "유의함" if p < 0.05 else "유의하지 않음", "n": len(d2)})
+    for bin_col, label in [("training_completed_yn", "교육이수여부(Y=1)"), ("turnover_yn", "이직여부(Y=1)")]:
+        d2 = sub.dropna(subset=[bin_col])
+        if len(d2) >= 3 and d2[bin_col].nunique() == 2:
+            y = (d2[bin_col] == "Y").astype(int)
+            r, p = stats.pointbiserialr(y, d2["tenure_months"])
+            rows.append({"지표": label, "r": round(float(r), 3), "p": round(float(p), 4),
+                         "유의성": "유의함" if p < 0.05 else "유의하지 않음", "n": len(d2)})
     return rows
 
 
@@ -188,6 +189,16 @@ def _team_block(df):
         {"agent_id": row["agent_id"], "tenure": float(row["tenure_months"]), "training": row["training_completed_yn"]}
         for _, row in df.dropna(subset=["tenure_months", "training_completed_yn"]).iterrows()
     ]
+    turnover_tenure_points = [
+        {"agent_id": row["agent_id"], "tenure": float(row["tenure_months"]), "turnover": row["turnover_yn"]}
+        for _, row in df.dropna(subset=["tenure_months", "turnover_yn"]).iterrows()
+    ]
+    turnover_r = turnover_p = None
+    turnover_sub = df.dropna(subset=["tenure_months", "turnover_yn"])
+    if len(turnover_sub) >= 3 and turnover_sub["turnover_yn"].nunique() == 2:
+        y = (turnover_sub["turnover_yn"] == "Y").astype(int)
+        turnover_r, turnover_p = stats.pointbiserialr(y, turnover_sub["tenure_months"])
+        turnover_r, turnover_p = round(float(turnover_r), 3), round(float(turnover_p), 4)
 
     confound = []
     sat_recontact_df = df.dropna(subset=["agent_satisfaction", "recontact_rate", "tenure_months"])
@@ -209,6 +220,7 @@ def _team_block(df):
         "tenure_satisfaction": tenure_satisfaction, "tenure_overtime": tenure_overtime,
         "training_tenure_points": training_tenure_points, "confound": confound,
         "corr_table": _corr_table(df),
+        "turnover_tenure_points": turnover_tenure_points, "turnover_r": turnover_r, "turnover_p": turnover_p,
     }
 
 

@@ -267,6 +267,14 @@
 
     <p class="note"><b>핵심 발견</b>: 근속기간이 만족도(r=0.86)·초과근무(r=-0.81)·교육이수(r=0.79)와 모두 p<0.0001로 강하게 연결돼 있다(위 표·산점도). 교육이수 여부별 근속기간 박스플롯을 보면 두 그룹이 근속기간으로 거의 완벽히 갈리는 것을 점 하나하나로 확인할 수 있다. 근속기간을 통제하면 번아웃-CSAT 상관은 -0.32→-0.13, 만족도-재문의율은 -0.29→+0.15(부호 역전)로 오른쪽 막대그래프처럼 거의 사라진다 — '번아웃 관리'보다 <b>'신입 온보딩 기간'</b> 문제일 가능성이 높다.</p>
     <p class="caption">신뢰도: 중간 (근속기간 교란변수 확인 자체는 높음, 고객지표로의 연결은 여전히 낮음) — 자세한 근거는 위키 이커머스_직원만족도_고객경험_상관관계_유의성부족 참고</p>
+
+    <hr />
+    <h3>이직(turnover) 위험과 근속기간 — 이번 분석에서 가장 유의한 발견</h3>
+    <div id="chart-tenure-turnover" class="chart" style="max-width:520px;"></div>
+    <p class="note"><b>핵심 발견</b>: 이직 여부는 근속기간과 point-biserial <b>r=-0.60 (p=0.005)</b>로 유의하게 연결된다(Mann-Whitney U 검정도 p=0.002로 일치). 이직자 3명(AG09·AG16·AG20)은 전원 근속 19~24개월인 반면, 재직중인 상담원의 평균 근속은 51개월이다. 이번 상담원 분석 전체에서 <b>가장 통계적으로 확실한 신호</b>다.</p>
+    <p class="note"><b>추가 확인(QA 점수는 독립 신호가 아님)</b>: <code>qa_score</code>는 만족도(r=0.99)·초과근무(r=-0.97)·근속기간(r=0.86)과 거의 완벽히 겹친다 — 사실상 근속기간의 재진술이며, 향후 성과 스코어링에서 별도 가중치로 중복 반영하면 안 된다.</p>
+    <p class="note"><b>3팀 근속기간 직접 확인</b>: 3팀 평균 근속 39.3개월로 1팀(48.0)·2팀(51.3)보다 짧은 편이나, Kruskal-Wallis 검정 결과 팀 간 근속기간 차이 자체는 유의하지 않다(p=0.42) — "3팀에 신입이 많다"는 가설은 방향은 맞지만 아직 통계적으로 확정되지 않았다.</p>
+    <p class="caption">신뢰도: 높음 (이직-근속기간 관계는 직접 검정으로 확인됨. n=20/이직 3명이라는 표본 자체의 한계는 여전히 존재)</p>
   </div>
 
   <div class="panel" id="tab-report">
@@ -803,6 +811,18 @@ fetch("data.json").then(r => r.json()).then(d => {
       ...baseLayout(), title: "근속기간 통제 전후 상관계수 비교", barmode: "group",
       yaxis: { title: "상관계수 r", range: [-1, 1], gridcolor: grid },
       shapes: [{ type: "line", x0: -0.5, x1: confLabels.length - 0.5, y0: 0, y1: 0, line: { color: "#607080", width: 1 } }],
+    }, config);
+
+    const byTurnover = { N: [], Y: [] };
+    block.turnover_tenure_points.forEach(pt => { if (byTurnover[pt.turnover]) byTurnover[pt.turnover].push(pt); });
+    const turnoverTraces = [];
+    if (byTurnover.N.length) turnoverTraces.push({ y: byTurnover.N.map(p => p.tenure), name: "재직중", type: "box", marker: { color: BLUE }, boxpoints: "all", jitter: 0.4, pointpos: 0, text: byTurnover.N.map(p => p.agent_id) });
+    if (byTurnover.Y.length) turnoverTraces.push({ y: byTurnover.Y.map(p => p.tenure), name: "이직", type: "box", marker: { color: CRITICAL }, boxpoints: "all", jitter: 0.4, pointpos: 0, text: byTurnover.Y.map(p => p.agent_id) });
+    const turnoverNote = block.turnover_r === null ? "표본 부족" : `r = ${block.turnover_r.toFixed(2)} (${block.turnover_p < 0.05 ? "p<0.05, 유의함" : "p≥0.05, 유의하지 않음"})`;
+    Plotly.newPlot("chart-tenure-turnover", turnoverTraces, {
+      ...baseLayout(), title: "이직 여부별 근속기간 분포 (점 하나 = 상담원 1명)", showlegend: false,
+      yaxis: { title: "근속기간(개월)", gridcolor: grid },
+      annotations: [{ xref: "paper", yref: "paper", x: 0.98, y: 0.98, showarrow: false, text: turnoverNote, align: "right", font: { size: 13, color: fg } }],
     }, config);
   }
 

@@ -491,7 +491,7 @@ def tenure_corr_table(df):
     rows = []
     for col, label in [
         ("agent_satisfaction", "직원만족도"), ("overtime_hours_avg", "초과근무시간"),
-        ("csat_avg", "상담원별 CSAT"), ("recontact_rate", "상담원별 재문의율"),
+        ("qa_score", "QA(품질)점수"), ("csat_avg", "상담원별 CSAT"), ("recontact_rate", "상담원별 재문의율"),
     ]:
         d = sub.dropna(subset=[col])
         if len(d) >= 3:
@@ -501,12 +501,13 @@ def tenure_corr_table(df):
         else:
             rows.append({"지표": label, "r": None, "p": None, "유의성(α=.05)": "표본 부족", "n": len(d)})
 
-    d2 = sub.dropna(subset=["training_completed_yn"])
-    if len(d2) >= 3:
-        y = (d2["training_completed_yn"] == "Y").astype(int)
-        r, p = stats.pointbiserialr(y, d2["tenure_months"])
-        rows.append({"지표": "교육이수여부(Y=1)", "r": round(float(r), 3), "p": round(float(p), 4),
-                     "유의성(α=.05)": "유의함" if p < 0.05 else "유의하지 않음", "n": len(d2)})
+    for bin_col, label in [("training_completed_yn", "교육이수여부(Y=1)"), ("turnover_yn", "이직여부(Y=1)")]:
+        d2 = sub.dropna(subset=[bin_col])
+        if len(d2) >= 3 and d2[bin_col].nunique() == 2:
+            y = (d2[bin_col] == "Y").astype(int)
+            r, p = stats.pointbiserialr(y, d2["tenure_months"])
+            rows.append({"지표": label, "r": round(float(r), 3), "p": round(float(p), 4),
+                         "유의성(α=.05)": "유의함" if p < 0.05 else "유의하지 않음", "n": len(d2)})
     return pd.DataFrame(rows)
 
 
@@ -564,6 +565,36 @@ def fig_tenure_by_training(df):
         ))
     fig.update_layout(yaxis_title="근속기간(개월)")
     return _layout(fig, "교육 이수 여부별 근속기간 분포 (점 하나 = 상담원 1명)", show_legend=False)
+
+
+def fig_tenure_by_turnover(df):
+    """이직 여부(Y/N)별 근속기간 분포. 이번 3주차 분석에서 가장 통계적으로
+    확실한 발견(point-biserial r=-0.60, p=0.005) — 이직자 전원이 근속
+    24개월 미만에 몰려 있다는 것을 점으로 직접 보여준다(2026-07-22 추가)."""
+    sub = df.dropna(subset=["tenure_months", "turnover_yn"])
+    labels = {"N": "재직중", "Y": "이직"}
+    colors = {"N": "#2a78d6", "Y": "#d03b3b"}
+    fig = go.Figure()
+    for k in ["N", "Y"]:
+        g = sub[sub["turnover_yn"] == k]
+        if len(g) == 0:
+            continue
+        fig.add_trace(go.Box(
+            y=g["tenure_months"], name=labels[k], marker_color=colors[k],
+            boxpoints="all", jitter=0.4, pointpos=0,
+            hovertext=g["agent_id"], hoverinfo="y+text",
+        ))
+    note = "표본 부족"
+    y_train = sub["turnover_yn"]
+    if len(sub) >= 3 and y_train.nunique() == 2:
+        y = (y_train == "Y").astype(int)
+        r, p = stats.pointbiserialr(y, sub["tenure_months"])
+        sig = "p<0.05, 유의함" if p < 0.05 else "p≥0.05, 유의하지 않음"
+        note = f"r = {r:.2f} ({sig})"
+    fig.add_annotation(xref="paper", yref="paper", x=0.98, y=0.98, showarrow=False, text=note,
+                        font=dict(size=13, color="#1c2733"), align="right")
+    fig.update_layout(yaxis_title="근속기간(개월)")
+    return _layout(fig, "이직 여부별 근속기간 분포 (점 하나 = 상담원 1명)", show_legend=False)
 
 
 def fig_confound_comparison(df):
