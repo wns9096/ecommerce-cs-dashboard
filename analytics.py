@@ -51,6 +51,8 @@ def load_data():
     usage = pd.read_csv(f"{RAW}/ecommerce_usage_history.csv", encoding="utf-8-sig")
 
     agents = pd.read_csv(f"{RAW}/ecommerce_agents.csv", encoding="utf-8-sig")
+    agents["hire_date"] = pd.to_datetime(agents["hire_date"])
+    agents["tenure_months"] = ((pd.Timestamp("2025-12-31") - agents["hire_date"]).dt.days / 30.44).round(1)
     per_agent = (
         cons.merge(sat[["consult_id", "csat"]], on="consult_id", how="left")
         .groupby("agent_id")
@@ -393,16 +395,44 @@ def fig_enps_gauge(df):
     return fig
 
 
+def _partial_corr(x, y, z):
+    """z(근속기간)를 통제한 x-y 편상관계수. 교란변수 검증용(2026-07-22 추가)."""
+    rxy, _ = stats.pearsonr(x, y)
+    rxz, _ = stats.pearsonr(x, z)
+    ryz, _ = stats.pearsonr(y, z)
+    denom = ((1 - rxz ** 2) * (1 - ryz ** 2)) ** 0.5
+    if denom == 0:
+        return float("nan"), float("nan")
+    r_partial = (rxy - rxz * ryz) / denom
+    n = len(x)
+    if n <= 3 or abs(r_partial) >= 1:
+        return r_partial, float("nan")
+    t = r_partial * ((n - 3) / (1 - r_partial ** 2)) ** 0.5
+    p = 2 * (1 - stats.t.cdf(abs(t), df=n - 3))
+    return r_partial, p
+
+
 def fig_burnout_csat_scatter(df):
     """번아웃(초과근무) x CSAT 산점도 + 추세선. 표본이 작으면(<10) 상관계수를
     신뢰하기 어렵다는 경고를 텍스트에 그대로 표시한다(교안 Day3 "표본이 6명으로
-    줄면 상관계수를 믿기 어렵다" 원칙)."""
+    줄면 상관계수를 믿기 어렵다" 원칙). 점 색상은 근속기간(개월) — 근속기간이 짧을수록
+    (신입일수록) 번아웃도 높고 만족도도 낮은 경향이 있어, 이 관계가 번아웃 자체보다
+    근속기간(온보딩 시기) 때문일 수 있음을 편상관계수로 함께 표시한다(2026-07-22 확인)."""
     df = df.dropna(subset=["overtime_hours_avg", "csat_avg"])
     small_sample = len(df) < 10
+    has_tenure = "tenure_months" in df.columns and df["tenure_months"].notna().all() and len(df) >= 4
+
     if len(df) >= 3:
         r, p = stats.pearsonr(df["overtime_hours_avg"], df["csat_avg"])
     else:
         r, p = float("nan"), float("nan")
+
+    marker = dict(size=10, line=dict(width=1, color="#0d366b"))
+    if has_tenure:
+        marker.update(color=df["tenure_months"], colorscale="Blues_r", showscale=True,
+                       colorbar=dict(title="근속(개월)"))
+    else:
+        marker["color"] = "#2a78d6"
 
     if small_sample or len(df) < 3:
         fig = px.scatter(
@@ -420,11 +450,14 @@ def fig_burnout_csat_scatter(df):
         fig.update_traces(line=dict(color="#eb6834", width=2), selector=dict(mode="lines"))
         sig = "p<0.05, 유의함" if p < 0.05 else "p≥0.05, 유의하지 않음"
         note = f"r = {r:.2f} ({sig})"
+        if has_tenure:
+            r_p, p_p = _partial_corr(df["overtime_hours_avg"], df["csat_avg"], df["tenure_months"])
+            note += f"<br>근속기간 통제 후: r = {r_p:.2f} (p={p_p:.2f})"
 
-    fig.update_traces(marker=dict(size=10, color="#2a78d6", line=dict(width=1, color="#0d366b")), selector=dict(mode="markers"))
-    fig.add_annotation(xref="paper", yref="paper", x=0.98, y=0.98, showarrow=False, text=note,
+    fig.update_traces(marker=marker, selector=dict(mode="markers"))
+    fig.add_annotation(xref="paper", yref="paper", x=0.98, y=0.98, showarrow=False, text=note, align="right",
                         font=dict(size=13, color="#d03b3b" if small_sample else "#1c2733"))
-    return _layout(fig, "번아웃(초과근무) x CSAT 산점도 + 추세선", show_legend=False)
+    return _layout(fig, "번아웃(초과근무) x CSAT 산점도 + 추세선 (색=근속기간)", show_legend=False)
 
 
 def fig_training_compare(df):

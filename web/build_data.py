@@ -83,6 +83,8 @@ overall["rate"] = round(overall["churned"] / overall["total"] * 100, 1)
 # 브라우저에서 통계 계산을 다시 구현하지 않고 빌드 시점에 전부 미리 구워둔다
 # (Streamlit 버전과 정확히 같은 숫자를 보장하기 위함).
 agents = pd.read_csv(f"{BASE}/ecommerce_agents.csv", encoding="utf-8-sig")
+agents["hire_date"] = pd.to_datetime(agents["hire_date"])
+agents["tenure_months"] = ((pd.Timestamp("2025-12-31") - agents["hire_date"]).dt.days / 30.44).round(1)
 per_agent = (
     cons.merge(sat[["consult_id", "csat"]], on="consult_id", how="left")
     .groupby("agent_id")
@@ -99,14 +101,34 @@ def _enps(df):
     return round(promoter - detractor, 1)
 
 
+def _partial_corr(x, y, z):
+    rxy, _ = stats.pearsonr(x, y)
+    rxz, _ = stats.pearsonr(x, z)
+    ryz, _ = stats.pearsonr(y, z)
+    denom = ((1 - rxz ** 2) * (1 - ryz ** 2)) ** 0.5
+    if denom == 0:
+        return None, None
+    r_p = (rxy - rxz * ryz) / denom
+    n = len(x)
+    if n <= 3 or abs(r_p) >= 1:
+        return round(float(r_p), 3), None
+    t = r_p * ((n - 3) / (1 - r_p ** 2)) ** 0.5
+    p_p = 2 * (1 - stats.t.cdf(abs(t), df=n - 3))
+    return round(float(r_p), 3), round(float(p_p), 4)
+
+
 def _team_block(df):
     scatter_df = df.dropna(subset=["overtime_hours_avg", "csat_avg"])
     n = len(scatter_df)
-    r = p = slope = intercept = None
+    r = p = slope = intercept = r_partial = p_partial = None
     if n >= 3:
         r, p = stats.pearsonr(scatter_df["overtime_hours_avg"], scatter_df["csat_avg"])
         slope, intercept = np.polyfit(scatter_df["overtime_hours_avg"], scatter_df["csat_avg"], 1)
         r, p, slope, intercept = round(float(r), 3), round(float(p), 4), float(slope), float(intercept)
+    if n >= 4:
+        r_partial, p_partial = _partial_corr(
+            scatter_df["overtime_hours_avg"], scatter_df["csat_avg"], scatter_df["tenure_months"]
+        )
 
     training = {}
     for k in ["Y", "N"]:
@@ -118,12 +140,14 @@ def _team_block(df):
             }
 
     points = [
-        {"agent_id": row["agent_id"], "x": float(row["overtime_hours_avg"]), "y": float(row["csat_avg"])}
+        {"agent_id": row["agent_id"], "x": float(row["overtime_hours_avg"]), "y": float(row["csat_avg"]),
+         "tenure": float(row["tenure_months"])}
         for _, row in scatter_df.iterrows()
     ]
 
     return {
         "n": len(df), "enps": _enps(df), "r": r, "p": p, "slope": slope, "intercept": intercept,
+        "r_partial": r_partial, "p_partial": p_partial,
         "points": points, "training": training,
     }
 
