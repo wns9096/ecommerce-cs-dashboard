@@ -54,24 +54,36 @@
   table.dd-table th, table.dd-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
   table.dd-table td.wrap-text { white-space: normal; min-width: 220px; }
   table.dd-table th { position: sticky; top: 0; background: var(--card-bg); }
+  .warn-box { background: var(--info-bg); border: 1px solid var(--danger); color: var(--fg); border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.85rem; }
+  .dd-controls select#agent-team-filter { min-width: 100px; }
+  #report-content { line-height: 1.7; font-size: 0.95rem; }
+  #report-content h1 { font-size: 1.4rem; margin-top: 0; }
+  #report-content h2 { font-size: 1.15rem; border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-top: 28px; }
+  #report-content h3 { font-size: 1rem; margin-top: 20px; }
+  #report-content table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.88rem; }
+  #report-content th, #report-content td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+  #report-content th { background: var(--card-bg); }
+  #report-content code { background: var(--card-bg); padding: 1px 5px; border-radius: 4px; }
+  #report-content hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>이효준 — 고객은 왜 이탈하는가: 이커머스 CS 데이터 인사이트 대시보드</h1>
-  <div class="subtitle">모두의연구소 2주차 프로젝트 — HTML/Plotly.js 정적 버전 (Streamlit 버전과 동일한 데이터·필터·드릴다운)</div>
+  <div class="subtitle">모두의연구소 2~3주차 프로젝트 — HTML/Plotly.js 정적 버전 (Streamlit 버전과 동일한 데이터·필터·드릴다운)</div>
 
   <div class="scorecards" id="overall-stats"></div>
 
   <div class="info-box">
-    <b>이번 2주차 핵심 요약 (정직한 버전)</b>
+    <b>핵심 요약 (정직한 버전)</b>
     1. VOC: 결제/환불이 부정비율 최고(47.9%)이나, 카테고리 간 차이는 6.4%p로 크지 않음<br />
     2. 만족도: NPS 평균(6.60)만 보면 무난하지만 정식 계산법으로는 -14.1 — '평균의 함정'은 재현됨<br />
-    3. 재문의·이탈: 반복재문의·회원등급·지역 신호는 이 합성 데이터에서 이탈과 뚜렷한 상관을 보이지 않음(일부는 반대 방향) — 처방적 제안은 데이터 한계로 보류
+    3. 재문의·이탈: 반복재문의·회원등급·지역 신호는 이 합성 데이터에서 이탈과 뚜렷한 상관을 보이지 않음(일부는 반대 방향) — 처방적 제안은 데이터 한계로 보류<br />
+    4. 상담원(3주차): eNPS는 -60.0으로 평균의 함정이 재현되나, 번아웃·교육이수와 고객경험의 상관관계는 통계적으로 유의하지 않음(r=-0.32, p=0.17 등)
   </div>
 
   <div class="disclaimer">
-    이 대시보드는 모두의연구소 2주차 프로젝트로 제작되었습니다. <code>raw/</code>의 데이터는 <b>100% 가상(합성) 이커머스 CS 데이터</b>이며 실제 서비스 데이터가 아닙니다.
+    이 대시보드는 모두의연구소 2~3주차 프로젝트로 제작되었습니다. <code>raw/</code>의 데이터는 <b>100% 가상(합성) 이커머스 CS 데이터</b>이며 실제 서비스 데이터가 아닙니다.
     일부 탭의 결과는 노이즈성이거나 예상과 반대 방향으로 나왔고, 이를 숨기지 않고 그대로 표시합니다.
     <code>data.json</code>은 배포 시점에 <code>build_data.py</code>로 구운 원자료(raw rows)이며, 아래 필터는 이 브라우저 안에서 즉시 재계산됩니다(서버 재계산 아님).
   </div>
@@ -87,6 +99,8 @@
     <button class="tab-btn" data-tab="csat">만족도</button>
     <button class="tab-btn" data-tab="chain">재문의·이탈</button>
     <button class="tab-btn" data-tab="customer">고객 현황</button>
+    <button class="tab-btn" data-tab="agents">상담원 관점</button>
+    <button class="tab-btn" data-tab="report">개선 제안 리포트</button>
   </div>
 
   <div class="panel active" id="tab-voc">
@@ -207,6 +221,36 @@
     <p class="note"><b>해석</b>: 회원등급별 이탈율 차이는 작고 상식과 다른 방향으로도 나타난다. 지역은 제주(n=30)를 제외한 전 지역이 표본 30건 미만이라 참고용에 그친다.</p>
     <p class="note"><b>시사점</b>: 규칙 기반 위험 스코어링도 신호 간 방향이 엇갈려 합산 점수가 작동하지 않음을 확인했다 — 처방적 제안(Top3)은 데이터 한계로 보류한다.</p>
     <p class="caption">신뢰도: 낮음 (가설 — 표본·데이터 생성 한계)</p>
+  </div>
+
+  <div class="panel" id="tab-agents">
+    <h3 style="margin-top:0;">상담원 관점: 직원만족도와 고객 경험</h3>
+    <div class="dd-controls">
+      <select id="agent-team-filter">
+        <option value="전체">전체</option>
+        <option value="1팀">1팀</option>
+        <option value="2팀">2팀</option>
+        <option value="3팀">3팀</option>
+      </select>
+      <span class="caption" id="agent-count" style="align-self:center;"></span>
+    </div>
+    <div id="agent-warning" class="warn-box" style="display:none;"></div>
+
+    <div class="row2">
+      <div id="chart-agent-enps" class="chart"></div>
+      <div id="chart-agent-scatter" class="chart"></div>
+    </div>
+    <div class="row2">
+      <div id="chart-agent-training-csat" class="chart"></div>
+      <div id="chart-agent-training-recontact" class="chart"></div>
+    </div>
+
+    <p class="note"><b>해석</b>: 직원만족도를 NPS 계산법 그대로 적용하면 eNPS가 크게 마이너스로 나오는 '평균의 함정'은 재현되지만(전체 -60.0), 번아웃-CSAT 상관관계는 이 데이터 전체 기준으로는 방향만 같고 통계적으로 유의하지 않다(r=-0.32, p=0.17).</p>
+    <p class="caption">신뢰도: 낮음 (가설) — 자세한 근거는 위키 이커머스_직원만족도_고객경험_상관관계_유의성부족 참고</p>
+  </div>
+
+  <div class="panel" id="tab-report">
+    <div id="report-content"></div>
   </div>
 </div>
 
@@ -615,6 +659,70 @@ fetch("data.json").then(r => r.json()).then(d => {
       + "</tbody>";
   }
 
+  function renderAgents(team) {
+    const block = d.agents_by_team[team];
+    document.getElementById("agent-count").textContent = `필터 적용 후 ${block.n}명 (전체 ${d.agents_by_team["전체"].n}명)`;
+
+    const warnEl = document.getElementById("agent-warning");
+    if (team !== "전체" && block.n < 10) {
+      warnEl.style.display = "block";
+      warnEl.textContent = `'${team}'은 표본이 ${block.n}명뿐입니다 — 아래 상관계수·비율은 참고용으로만 보세요.`;
+    } else {
+      warnEl.style.display = "none";
+    }
+
+    const enpsColor = block.enps < 0 ? CRITICAL : GOOD;
+    Plotly.newPlot("chart-agent-enps", [{
+      type: "indicator", mode: "gauge+number", value: block.enps,
+      title: { text: `eNPS (n=${block.n})` },
+      gauge: { axis: { range: [-100, 100] }, bar: { color: fg },
+        steps: [{ range: [-100, 0], color: isDark ? "#4a2020" : "#f6c6c6" }, { range: [0, 100], color: isDark ? "#1e3a22" : "#c8e6c9" }] },
+    }], { ...baseLayout(), height: 280 }, config);
+
+    const scatterTraces = [{
+      x: block.points.map(pt => pt.x), y: block.points.map(pt => pt.y), mode: "markers", type: "scatter",
+      marker: { size: 10, color: BLUE, line: { width: 1, color: "#0d366b" } },
+      text: block.points.map(pt => pt.agent_id), hovertemplate: "%{text}<br>초과근무: %{x}h<br>CSAT: %{y}<extra></extra>",
+      showlegend: false,
+    }];
+    let noteText, noteColor = fg;
+    if (block.r === null) {
+      noteText = `표본 n=${block.n}명 — 상관계수 계산 불가`;
+      noteColor = CRITICAL;
+    } else {
+      const xs = block.points.map(pt => pt.x);
+      const xMin = Math.min(...xs), xMax = Math.max(...xs);
+      scatterTraces.push({
+        x: [xMin, xMax], y: [xMin, xMax].map(x => block.slope * x + block.intercept),
+        mode: "lines", type: "scatter", line: { color: ORANGE, width: 2 }, showlegend: false,
+      });
+      const sig = block.p < 0.05 ? "p<0.05, 유의함" : "p≥0.05, 유의하지 않음";
+      noteText = `r = ${block.r.toFixed(2)} (${sig})`;
+      if (team !== "전체" && block.n < 10) noteColor = CRITICAL;
+    }
+    Plotly.newPlot("chart-agent-scatter", scatterTraces, {
+      ...baseLayout(), title: "번아웃(초과근무) x CSAT 산점도 + 추세선", showlegend: false,
+      xaxis: { title: "월 평균 초과근무시간", gridcolor: grid }, yaxis: { title: "상담원별 CSAT 평균", gridcolor: grid },
+      annotations: [{ xref: "paper", yref: "paper", x: 0.98, y: 0.98, showarrow: false, text: noteText, font: { size: 13, color: noteColor } }],
+    }, config);
+
+    const tY = block.training.Y, tN = block.training.N;
+    const labels = [], csatVals = [], recontactVals = [], colors = [];
+    if (tY) { labels.push("이수"); csatVals.push(tY.csat_avg); recontactVals.push(tY.recontact_rate); colors.push(BLUE); }
+    if (tN) { labels.push("미이수"); csatVals.push(tN.csat_avg); recontactVals.push(tN.recontact_rate); colors.push(MUTED); }
+    Plotly.newPlot("chart-agent-training-csat", [{
+      x: labels, y: csatVals, type: "bar", marker: { color: colors },
+      text: csatVals.map(v => v.toFixed(2)), textposition: "outside",
+    }], { ...baseLayout(), title: "교육 이수 여부별 CSAT 평균", showlegend: false }, config);
+    Plotly.newPlot("chart-agent-training-recontact", [{
+      x: labels, y: recontactVals, type: "bar", marker: { color: colors },
+      text: recontactVals.map(v => `${v.toFixed(1)}%`), textposition: "outside",
+    }], { ...baseLayout(), title: "교육 이수 여부별 재문의율(%)", showlegend: false }, config);
+  }
+
+  document.getElementById("agent-team-filter").addEventListener("change", e => renderAgents(e.target.value));
+  document.getElementById("report-content").innerHTML = d.report_html;
+
   function renderAll() {
     const vocRows = filteredVoc();
     const mergedRows = filteredMerged();
@@ -637,6 +745,8 @@ fetch("data.json").then(r => r.json()).then(d => {
 
     renderCustomer(d.cust);
     renderCustomerDrilldown(d.cust);
+
+    renderAgents(document.getElementById("agent-team-filter").value);
   }
 
   ["voc-breakdown-cat", "voc-breakdown-senti", "voc-dd-subcat"].forEach(id =>
