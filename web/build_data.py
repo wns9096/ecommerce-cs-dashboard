@@ -230,6 +230,65 @@ for t in ["1팀", "2팀", "3팀"]:
     agents_by_team[t] = _team_block(agents[agents["team"] == t])
 agents_by_team["전체"]["team_enps"] = team_enps_all
 
+# ---------------- 성장(AARRR) — 4주차 신설 ----------------
+# 채널×월 상세를 브라우저에 그대로 넘기지 않고, Streamlit(analytics.py)의
+# build_channel_acquisition_chart/build_activation_retention_chart와 동일한 집계 결과를
+# 빌드 시점에 미리 구워둔다(팀별 통계를 미리 구운 것과 같은 이유 — 숫자 일치 보장).
+ONLINE_CHANNELS = {"SNS광고", "검색광고", "자사앱푸시"}
+
+acq = pd.read_csv(f"{BASE}/data_customer_acquisition.csv", encoding="utf-8-sig")
+spend = pd.read_csv(f"{BASE}/data_marketing_spend.csv", encoding="utf-8-sig")
+pe = pd.read_csv(f"{BASE}/data_product_events.csv", encoding="utf-8-sig")
+pe["event_date"] = pd.to_datetime(pe["event_date"])
+
+g = spend.groupby("channel").agg(clicks=("clicks", "sum"), signups=("signups", "sum"), spend=("spend", "sum")).reset_index()
+g["clicks"] = g.apply(lambda r: None if r["channel"] not in ONLINE_CHANNELS else (None if pd.isna(r["clicks"]) else float(r["clicks"])), axis=1)
+g["cac"] = (g["spend"] / g["signups"]).round(0)
+g = g.sort_values("cac", ascending=False)
+channel_acquisition = [
+    {
+        "channel": row["channel"],
+        "clicks": None if pd.isna(row["clicks"]) else float(row["clicks"]),
+        "signups": int(row["signups"]),
+        "cac": float(row["cac"]),
+    }
+    for _, row in g.iterrows()
+]
+
+stat_cards = {
+    "total_customers": int(len(acq)),
+    "total_spend": int(spend["spend"].sum()),
+    "avg_cac": round(int(spend["spend"].sum()) / int(spend["signups"].sum())) if spend["signups"].sum() else 0,
+}
+
+first_order = pe[pe["feature"] == "첫주문"].groupby("customer_id")["days_since_signup"].min()
+cust_idx = cust.set_index("customer_id").copy()
+cust_idx["first_order_day"] = first_order
+
+
+def _activation_group(row):
+    if pd.isna(row["first_order_day"]):
+        return "첫주문 없음"
+    elif row["first_order_day"] <= 6:
+        return "가입 7일 내 첫주문"
+    else:
+        return "8~29일 첫주문"
+
+
+cust_idx["activation_group"] = cust_idx.apply(_activation_group, axis=1)
+order = ["가입 7일 내 첫주문", "8~29일 첫주문", "첫주문 없음"]
+act_tbl = cust_idx.groupby("activation_group").agg(n=("churn_yn", "size"), churned=("churn_yn", lambda s: (s == "Y").sum())).reindex(order)
+activation_retention = [
+    {"group": g_, "n": int(row["n"]), "churned": int(row["churned"]), "rate": round(float(row["churned"]) / float(row["n"]) * 100, 1)}
+    for g_, row in act_tbl.iterrows()
+]
+
+growth = {
+    "channel_acquisition": channel_acquisition,
+    "stat_cards": stat_cards,
+    "activation_retention": activation_retention,
+}
+
 # ---------------- 개선 제안 리포트 (Day4) — 마크다운을 빌드 시점에 HTML로 변환 ----------------
 report_html = ""
 try:
@@ -247,11 +306,11 @@ except FileNotFoundError:
 
 data = {
     "voc": voc_rows, "merged": merged_rows, "cust": cust_rows, "overall": overall,
-    "agents_by_team": agents_by_team, "report_html": report_html,
+    "agents_by_team": agents_by_team, "report_html": report_html, "growth": growth,
 }
 
 with open("data.json", "w", encoding="utf-8") as f:
     json.dump(data, f, ensure_ascii=False)
 
 print(f"saved web/data.json (voc={len(voc_rows)}, merged={len(merged_rows)}, cust={len(cust_rows)}, "
-      f"agents={agents_by_team['전체']['n']}, report_html={len(report_html)}자)")
+      f"agents={agents_by_team['전체']['n']}, report_html={len(report_html)}자, growth_channels={len(channel_acquisition)})")

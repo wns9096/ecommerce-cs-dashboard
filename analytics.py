@@ -631,3 +631,91 @@ def drilldown_customers(cust, grades, regions):
         df = df[df["region"].isin(regions)]
     cols = ["customer_id", "name", "age", "gender", "region", "membership_grade", "join_date", "churn_yn"]
     return df[cols].sort_values("join_date", ascending=False)
+
+
+# ==================== 4주차: 성장(AARRR) 데이터 ====================
+ONLINE_CHANNELS = {"SNS광고", "검색광고", "자사앱푸시"}
+
+
+@st.cache_data
+def load_growth_data():
+    """기존 load_data()는 건드리지 않고 별도로 로드. 5개 파일을 딕셔너리로 반환."""
+    acq = pd.read_csv(f"{RAW}/data_customer_acquisition.csv", encoding="utf-8-sig")
+    spend = pd.read_csv(f"{RAW}/data_marketing_spend.csv", encoding="utf-8-sig")
+    pe = pd.read_csv(f"{RAW}/data_product_events.csv", encoding="utf-8-sig")
+    pe["event_date"] = pd.to_datetime(pe["event_date"])
+    me = pd.read_csv(f"{RAW}/data_membership_events.csv", encoding="utf-8-sig")
+    me["event_date"] = pd.to_datetime(me["event_date"])
+    ref = pd.read_csv(f"{RAW}/data_referrals.csv", encoding="utf-8-sig")
+    ref["referral_date"] = pd.to_datetime(ref["referral_date"])
+    ref["reward_paid_date"] = pd.to_datetime(ref["reward_paid_date"])
+    return {"acquisition": acq, "marketing_spend": spend, "product_events": pe,
+            "membership_events": me, "referrals": ref}
+
+
+def growth_stat_cards(acq, spend):
+    """상단 지표 카드 3개: 전체 획득 고객 수 / 전체 집행액 / 평균 CAC"""
+    total_customers = len(acq)
+    total_spend = int(spend["spend"].sum())
+    total_signups = int(spend["signups"].sum())
+    avg_cac = round(total_spend / total_signups) if total_signups else 0
+    return {"total_customers": total_customers, "total_spend": total_spend, "avg_cac": avg_cac}
+
+
+def build_channel_acquisition_chart(spend_df, acq_df):
+    """차트①: 채널별 클릭(허영지표) vs 가입(실제 성과) vs CAC. CAC 높은 순 정렬.
+    비광고 채널(지인추천·제휴사·오프라인매장)은 impressions/clicks가 구조적 결측이므로
+    0으로 채우지 않고 막대 자체를 그리지 않는다(=None으로 두면 Plotly가 건너뜀)."""
+    g = spend_df.groupby("channel").agg(
+        clicks=("clicks", "sum"), signups=("signups", "sum"), spend=("spend", "sum")
+    ).reset_index()
+    g["clicks"] = g.apply(lambda r: None if r["channel"] not in ONLINE_CHANNELS else r["clicks"], axis=1)
+    g["cac"] = (g["spend"] / g["signups"]).round(0)
+    g = g.sort_values("cac", ascending=False)
+
+    fig = go.Figure()
+    fig.add_bar(x=g["channel"], y=g["clicks"], name="총 클릭 수(허영 지표)", marker_color=MUTED, yaxis="y1")
+    fig.add_bar(x=g["channel"], y=g["signups"], name="총 가입 수(실제 성과)", marker_color=BLUE, yaxis="y1")
+    fig.add_trace(go.Scatter(x=g["channel"], y=g["cac"], name="CAC(원, 우측축)", mode="lines+markers",
+                              marker_color=RED, yaxis="y2"))
+    fig.update_layout(
+        barmode="group",
+        yaxis=dict(title="건수"),
+        yaxis2=dict(title="CAC(원)", overlaying="y", side="right", showgrid=False),
+    )
+    return _layout(fig, "채널별 획득 성과 — 클릭 많다고 가입도 많은 건 아니다 (CAC 높은 순 정렬)")
+
+
+def build_activation_retention_chart(product_events_df, cust_df):
+    """차트②: 가입 7일 내 '첫주문' 여부에 따른 이탈률 비교(아하 모먼트).
+    막대 위에 그룹 인원수를 함께 표기 — 비율만 보여주면 표본 크기를 숨기게 됨."""
+    first_order = (
+        product_events_df[product_events_df["feature"] == "첫주문"]
+        .groupby("customer_id")["days_since_signup"].min()
+    )
+    df = cust_df.set_index("customer_id").copy()
+    df["first_order_day"] = first_order
+
+    def grp(row):
+        if pd.isna(row["first_order_day"]):
+            return "첫주문 없음"
+        elif row["first_order_day"] <= 6:
+            return "가입 7일 내 첫주문"
+        else:
+            return "8~29일 첫주문"
+
+    df["activation_group"] = df.apply(grp, axis=1)
+    order = ["가입 7일 내 첫주문", "8~29일 첫주문", "첫주문 없음"]
+    tbl = df.groupby("activation_group").agg(
+        인원=("churn_yn", "size"), 이탈자=("churn_yn", lambda s: (s == "Y").sum())
+    ).reindex(order)
+    tbl["이탈률"] = (tbl["이탈자"] / tbl["인원"] * 100).round(1)
+
+    fig = go.Figure()
+    fig.add_bar(
+        x=tbl.index, y=tbl["이탈률"], marker_color=[GOOD, YELLOW, CRITICAL],
+        text=[f"{r}% (n={n})" for r, n in zip(tbl["이탈률"], tbl["인원"])],
+        textposition="outside",
+    )
+    fig.update_layout(yaxis_title="이탈률(%)")
+    return _layout(fig, "활성화(가입 7일 내 첫주문)가 리텐션에 미치는 영향", show_legend=False)

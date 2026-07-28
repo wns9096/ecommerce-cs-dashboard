@@ -27,7 +27,7 @@ voc_categories = st.sidebar.multiselect("VOC 대분류 (VOC 현황 탭)", sorted
 voc_channels = st.sidebar.multiselect("VOC 채널 (VOC 현황 탭)", sorted(voc["채널"].unique()))
 cons_channels = st.sidebar.multiselect("상담 채널 (만족도·재문의 탭)", sorted(cons["channel"].unique()))
 
-dash_tab, report_tab = st.tabs(["대시보드", "개선 제안 리포트"])
+dash_tab, report_tab, growth_tab = st.tabs(["대시보드", "개선 제안 리포트", "성장"])
 
 # ==================== 큰 탭 1: 대시보드 ====================
 with dash_tab:
@@ -272,3 +272,42 @@ with report_tab:
             st.markdown(f.read())
     except FileNotFoundError:
         st.warning("report/고객서비스_만족도개선_리포트.md 파일을 찾을 수 없습니다.")
+
+# ==================== 큰 탭 3: 성장 (4주차 신설) ====================
+with growth_tab:
+    st.info(
+        "**4주차 신설 페이지.** 2~3주차 데이터는 '이미 우리 고객인 사람'만 다뤘습니다. "
+        "이 페이지는 획득(어디서 왔는가)·활성화(첫 구매까지 며칠 걸렸는가)를 다루는 AARRR 성장 지표 영역이며, "
+        "**5~6주차에 걸쳐 계속 채워집니다.** 이번 주는 차트 2개만 배치합니다."
+    )
+
+    growth = az.load_growth_data()
+    acq, spend, pe = growth["acquisition"], growth["marketing_spend"], growth["product_events"]
+
+    cards = az.growth_stat_cards(acq, spend)
+    g1, g2, g3 = st.columns(3)
+    g1.metric("전체 획득 고객 수", f"{cards['total_customers']}명")
+    g2.metric("전체 마케팅 집행액", f"{cards['total_spend']:,}원")
+    g3.metric("평균 CAC", f"{cards['avg_cac']:,}원")
+
+    st.subheader("① 채널별 획득 성과 — 허영 지표 대비")
+    st.plotly_chart(az.build_channel_acquisition_chart(spend, acq), use_container_width=True)
+    st.markdown(
+        "**읽는 법**: SNS광고는 클릭이 가장 많지만(허영 지표) CAC는 가장 비싸다. "
+        "반대로 지인추천은 노출·클릭 개념이 없는 채널(구조적 결측 — 0이 아니라 '해당없음')인데도 "
+        "CAC가 전 채널 중 가장 낮다. **클릭 수만 보고 채널 성과를 판단하면 안 되는 이유가 여기 있다.**"
+    )
+
+    st.subheader("② 활성화가 리텐션에 미치는 영향")
+    st.plotly_chart(az.build_activation_retention_chart(pe, data["cust"]), use_container_width=True)
+    st.markdown(
+        "**읽는 법**: 가입 7일 내 첫 주문을 완료한 고객의 이탈률(4.5%)이, 8일 이후 첫 주문(29.4%)이나 "
+        "아예 주문이 없는 고객(28.0%)보다 훨씬 낮다 — '아하 모먼트' 패턴이다.\n\n"
+        "**한계 두 가지를 반드시 함께 밝힌다**: "
+        "① 이건 상관관계이지 인과관계가 아니다 — 빨리 사서 안 떠난 것인지, 애초에 오래 쓸 생각이었던 "
+        "고객이 빨리 산 것인지(역인과) 이 데이터로는 구분할 수 없다. "
+        "② 이 패턴은 **합성 데이터에 의도적으로 심은 신호**다(가입 7일 내 첫주문 확률을 이탈 여부에 따라 "
+        "다르게 부여해 생성함) — 실제 발견이 아니라 검증 절차 연습용이라는 점을 명시한다."
+    )
+    st.caption("데이터 출처: 4주차 신규 생성(전부 합성 데이터) — raw/data_customer_acquisition.csv 등 5종. "
+               "설계·생성·검증 과정은 위키 신규_성장데이터_설계서_이커머스 참고.")

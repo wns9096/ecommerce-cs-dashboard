@@ -100,6 +100,7 @@
     <button class="tab-btn" data-tab="chain">재문의·이탈</button>
     <button class="tab-btn" data-tab="customer">고객 현황</button>
     <button class="tab-btn" data-tab="agents">상담원 관점</button>
+    <button class="tab-btn" data-tab="growth">성장</button>
     <button class="tab-btn" data-tab="report">개선 제안 리포트</button>
   </div>
 
@@ -275,6 +276,19 @@
     <p class="note"><b>추가 확인(QA 점수는 독립 신호가 아님)</b>: <code>qa_score</code>는 만족도(r=0.99)·초과근무(r=-0.97)·근속기간(r=0.86)과 거의 완벽히 겹친다 — 사실상 근속기간의 재진술이며, 향후 성과 스코어링에서 별도 가중치로 중복 반영하면 안 된다.</p>
     <p class="note"><b>3팀 근속기간 직접 확인</b>: 3팀 평균 근속 39.3개월로 1팀(48.0)·2팀(51.3)보다 짧은 편이나, Kruskal-Wallis 검정 결과 팀 간 근속기간 차이 자체는 유의하지 않다(p=0.42) — "3팀에 신입이 많다"는 가설은 방향은 맞지만 아직 통계적으로 확정되지 않았다.</p>
     <p class="caption">신뢰도: 높음 (이직-근속기간 관계는 직접 검정으로 확인됨. n=20/이직 3명이라는 표본 자체의 한계는 여전히 존재)</p>
+  </div>
+
+  <div class="panel" id="tab-growth">
+    <p class="note">4주차 신설 페이지. 2~3주차 데이터는 "이미 우리 고객인 사람"만 다뤘다. 이 페이지는 획득(어디서 왔는가)·활성화(첫 구매까지 며칠 걸렸는가)를 다루는 AARRR 성장 지표 영역이며, <b>5~6주차에 걸쳐 계속 채워진다</b>. 이번 주는 차트 2개만 배치한다.</p>
+    <div class="scorecards" id="growth-stats"></div>
+    <h3>① 채널별 획득 성과 — 허영 지표 대비</h3>
+    <div id="chart-growth-channel" class="chart"></div>
+    <p class="note">SNS광고는 클릭이 가장 많지만(허영 지표) CAC는 가장 비싸다. 반대로 지인추천은 노출·클릭 개념이 없는 채널(구조적 결측 — 0이 아니라 "해당없음")인데도 CAC가 전 채널 중 가장 낮다. <b>클릭 수만 보고 채널 성과를 판단하면 안 되는 이유가 여기 있다.</b></p>
+    <h3>② 활성화가 리텐션에 미치는 영향</h3>
+    <div id="chart-growth-activation" class="chart" style="max-width:600px;"></div>
+    <p class="note">가입 7일 내 첫 주문을 완료한 고객의 이탈률이, 8일 이후 첫 주문이나 아예 주문이 없는 고객보다 훨씬 낮다 — "아하 모먼트" 패턴이다.</p>
+    <p class="note"><b>한계 두 가지</b>: ① 이건 상관관계이지 인과관계가 아니다 — 빨리 사서 안 떠난 것인지, 애초에 오래 쓸 생각이었던 고객이 빨리 산 것인지(역인과) 이 데이터로는 구분할 수 없다. ② 이 패턴은 <b>합성 데이터에 의도적으로 심은 신호</b>다 — 실제 발견이 아니라 검증 절차 연습용이다.</p>
+    <p class="caption">데이터 출처: 4주차 신규 생성(전부 합성 데이터) 5종. 설계·생성·검증 과정은 위키 신규_성장데이터_설계서_이커머스 참고.</p>
   </div>
 
   <div class="panel" id="tab-report">
@@ -828,6 +842,39 @@ fetch("data.json").then(r => r.json()).then(d => {
 
   document.getElementById("agent-team-filter").addEventListener("change", e => renderAgents(e.target.value));
   document.getElementById("report-content").innerHTML = d.report_html;
+
+  function renderGrowth(growth) {
+    const cards = growth.stat_cards;
+    document.getElementById("growth-stats").innerHTML = `
+      <div class="card"><div class="label">전체 획득 고객 수</div><div class="value">${cards.total_customers}명</div></div>
+      <div class="card"><div class="label">전체 마케팅 집행액</div><div class="value">${cards.total_spend.toLocaleString()}원</div></div>
+      <div class="card"><div class="label">평균 CAC</div><div class="value">${Math.round(cards.avg_cac).toLocaleString()}원</div></div>
+    `;
+
+    const ch = growth.channel_acquisition;
+    Plotly.newPlot("chart-growth-channel", [
+      { x: ch.map(r => r.channel), y: ch.map(r => r.clicks), name: "총 클릭 수(허영 지표)", type: "bar", marker: { color: MUTED } },
+      { x: ch.map(r => r.channel), y: ch.map(r => r.signups), name: "총 가입 수(실제 성과)", type: "bar", marker: { color: BLUE } },
+      { x: ch.map(r => r.channel), y: ch.map(r => r.cac), name: "CAC(원, 우측축)", type: "scatter", mode: "lines+markers", marker: { color: CRITICAL }, yaxis: "y2" },
+    ], Object.assign(baseLayout(), {
+      title: "채널별 획득 성과 — 클릭 많다고 가입도 많은 건 아니다 (CAC 높은 순 정렬)",
+      barmode: "group",
+      yaxis: Object.assign({}, baseLayout().yaxis, { title: "건수" }),
+      yaxis2: { title: "CAC(원)", overlaying: "y", side: "right", showgrid: false },
+    }), config);
+
+    const act = growth.activation_retention;
+    Plotly.newPlot("chart-growth-activation", [{
+      x: act.map(r => r.group), y: act.map(r => r.rate), type: "bar",
+      marker: { color: [GOOD, "#eda100", CRITICAL] },
+      text: act.map(r => `${r.rate}% (n=${r.n})`), textposition: "outside",
+    }], Object.assign(baseLayout(), {
+      title: "활성화(가입 7일 내 첫주문)가 리텐션에 미치는 영향",
+      yaxis: Object.assign({}, baseLayout().yaxis, { title: "이탈률(%)" }),
+      showlegend: false,
+    }), config);
+  }
+  renderGrowth(d.growth);
 
   function renderAll() {
     const vocRows = filteredVoc();
